@@ -68,7 +68,6 @@ fun MedicinesScreen(onBack: () -> Unit, onRecord: (Slot) -> Unit) {
     val context = LocalContext.current
     val plan = ui.plan
     ScreenScaffold(title = stringResource(R.string.medicines_title), onBack = onBack) {
-        Text(stringResource(R.string.medicines_body), style = MaterialTheme.typography.bodyLarge)
         if (plan == null || plan.medicines.isEmpty()) {
             Text(stringResource(R.string.medicines_none), style = MaterialTheme.typography.titleMedium)
             return@ScreenScaffold

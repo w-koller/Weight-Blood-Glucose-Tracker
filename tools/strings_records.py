@@ -4,8 +4,7 @@ STRINGS = {
     "delete": "Delete",
 
     "logbook_title": "Logbook",
-    "logbook_body": "These are your records, with the newest day first. Please choose a day to see or change its records.",
-    "logbook_empty": "You have no records yet. Your readings and doses will appear here after your first check.",
+    "logbook_empty": "You have no records yet.",
     "logbook_open_day": "See or change this day",
     "logbook_show_earlier": "Show earlier days",
     "logbook_weight": "Weight %1$s kg",
@@ -16,7 +15,6 @@ STRINGS = {
     "logbook_dose_skipped_reason": "%1$s not given. %2$s.",
     "logbook_dose_not_needed": "%1$s not needed",
 
-    "day_body": "You can change a record if it was entered by mistake, or delete it. Each change is saved straight away.",
     "day_empty": "There are no records for this day.",
     "day_measurements": "Weight and waist",
     "day_delete_title": "Delete this record?",
@@ -31,7 +29,6 @@ STRINGS = {
     "edit_measurement_invalid": "Please enter a weight from 30 to 300 kg, a waist measurement from 40 to 250 cm, or both.",
 
     "progress_title": "Progress",
-    "progress_body": "This page shows how your weight and blood glucose level (BGL) have changed over time.",
     "progress_weight_title": "Weight",
     "progress_waist_title": "Waist measurement",
     "progress_glucose_title": "Blood glucose level",
@@ -67,7 +64,6 @@ STRINGS = {
     "progress_fixed_summary": "Given %1$s. Not given %2$s.",
 
     "medicines_title": "Medicines",
-    "medicines_body": "These are the medicines in your plan for today. You can record any that you have not recorded yet.",
     "medicines_none": "Your plan has no medicines at set times. You can add them in Settings › Your plan.",
     "medicines_line": "%1$s, %2$s",
     "medicines_status_given": "%1$s given",

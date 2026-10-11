@@ -56,7 +56,6 @@ fun AssistantScreen(onBack: () -> Unit, onSetUp: () -> Unit, onCheckIn: () -> Un
     val context = LocalContext.current
 
     ScreenScaffold(title = stringResource(R.string.assistant_title), onBack = onBack) {
-        Text(stringResource(R.string.assistant_body), style = MaterialTheme.typography.bodyLarge)
 
         val facts = ui.context?.facts(ui.period)
         SectionCard(stringResource(R.string.assistant_readout_title)) {
@@ -89,7 +88,6 @@ fun AssistantScreen(onBack: () -> Unit, onSetUp: () -> Unit, onCheckIn: () -> Un
         }
 
         SectionCard(stringResource(R.string.assistant_questions_title)) {
-            Text(stringResource(R.string.assistant_questions_body), style = MaterialTheme.typography.bodyLarge)
             listOf(R.string.assistant_suggest_week, R.string.assistant_suggest_highest, R.string.assistant_suggest_weight, R.string.assistant_suggest_bgl)
                 .forEach { res ->
                     val text = stringResource(res)
@@ -209,7 +207,7 @@ fun AssistantSettingsScreen(onBack: () -> Unit) {
                 NoticeCard(NoticeKind.INFO, stringResource(R.string.assistant_ready_title), stringResource(R.string.assistant_ready, ModelManager.MODEL_NAME))
                 ToggleRow(
                     title = stringResource(R.string.assistant_use),
-                    description = stringResource(R.string.assistant_use_helper),
+                    description = null,
                     checked = settings.assistantEnabled,
                     onCheckedChange = { on -> scope.launch { container.settingsStore.update { it.copy(assistantEnabled = on) } } },
                 )

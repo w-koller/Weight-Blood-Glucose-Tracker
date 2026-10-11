@@ -351,7 +351,7 @@ class ScreenFlowTest {
         runBlocking { app.container.settingsStore.update { it.copy(firstName = "Mary") } }
         show { HomeScreen(HomeActions({ _, _ -> }, {}, {}, {}, {}, {}, {}, {})) }
         waitFor(", Mary")
-        waitFor("Tap to see your calendar.")
+        waitFor("Open your calendar")
         shot("home_03_name")
     }
 

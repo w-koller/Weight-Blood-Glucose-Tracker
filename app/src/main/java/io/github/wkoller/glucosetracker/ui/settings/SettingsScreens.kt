@@ -50,8 +50,8 @@ fun SettingsScreen(onBack: () -> Unit, actions: SettingsActions) {
     ScreenScaffold(title = stringResource(R.string.settings_title), onBack = onBack) {
         BigButton(stringResource(R.string.settings_display), onClick = actions.display, icon = R.drawable.ic_accessibility, helper = stringResource(R.string.settings_display_helper), style = ButtonStyle.SECONDARY)
         BigButton(stringResource(R.string.settings_plan), onClick = actions.plan, icon = R.drawable.ic_description, helper = stringResource(R.string.settings_plan_helper), style = ButtonStyle.SECONDARY)
-        BigButton(stringResource(R.string.settings_reminders), onClick = actions.reminders, icon = R.drawable.ic_notifications, helper = stringResource(R.string.settings_reminders_helper), style = ButtonStyle.SECONDARY)
-        BigButton(stringResource(R.string.settings_assistant), onClick = actions.assistant, icon = R.drawable.ic_forum, helper = stringResource(R.string.settings_assistant_helper), style = ButtonStyle.SECONDARY)
+        BigButton(stringResource(R.string.settings_reminders), onClick = actions.reminders, icon = R.drawable.ic_notifications, style = ButtonStyle.SECONDARY)
+        BigButton(stringResource(R.string.settings_assistant), onClick = actions.assistant, icon = R.drawable.ic_forum, style = ButtonStyle.SECONDARY)
         BigButton(stringResource(R.string.settings_export), onClick = actions.export, icon = R.drawable.ic_share, helper = stringResource(R.string.settings_export_helper), style = ButtonStyle.SECONDARY)
         BigButton(stringResource(R.string.settings_about), onClick = actions.about, icon = R.drawable.ic_info, helper = stringResource(R.string.settings_about_helper), style = ButtonStyle.SECONDARY)
     }
@@ -67,7 +67,6 @@ fun DisplaySettingsScreen(onBack: () -> Unit) {
     fun update(transform: (Settings) -> Settings) = scope.launch { container.settingsStore.update(transform) }
 
     ScreenScaffold(title = stringResource(R.string.settings_display), onBack = onBack) {
-        Text(stringResource(R.string.display_body), style = MaterialTheme.typography.bodyLarge)
         SectionCard(stringResource(R.string.display_text_size)) {
             TextSize.entries.forEach { size ->
                 OptionRow(
@@ -79,7 +78,7 @@ fun DisplaySettingsScreen(onBack: () -> Unit) {
             }
         }
         SectionCard(stringResource(R.string.display_colours)) {
-            ToggleRow(stringResource(R.string.display_max_contrast), stringResource(R.string.display_max_contrast_helper), settings.maxContrast, { on -> update { it.copy(maxContrast = on) } })
+            ToggleRow(stringResource(R.string.display_max_contrast), null, settings.maxContrast, { on -> update { it.copy(maxContrast = on) } })
             if (!settings.maxContrast) {
                 ThemeChoice.entries.forEach { choice ->
                     OptionRow(
@@ -99,9 +98,9 @@ fun DisplaySettingsScreen(onBack: () -> Unit) {
         }
         SectionCard(stringResource(R.string.display_clutter)) {
             ToggleRow(stringResource(R.string.display_simple_mode), stringResource(R.string.display_simple_mode_helper), settings.simpleMode, { on -> update { it.copy(simpleMode = on) } })
-            ToggleRow(stringResource(R.string.display_show_icons), stringResource(R.string.display_show_icons_helper), settings.showIcons, { on -> update { it.copy(showIcons = on) } })
-            ToggleRow(stringResource(R.string.display_show_helper), stringResource(R.string.display_show_helper_helper), settings.showHelperText, { on -> update { it.copy(showHelperText = on) } })
-            ToggleRow(stringResource(R.string.display_reduce_motion), stringResource(R.string.display_reduce_motion_helper), settings.reduceMotion, { on -> update { it.copy(reduceMotion = on) } })
+            ToggleRow(stringResource(R.string.display_show_icons), null, settings.showIcons, { on -> update { it.copy(showIcons = on) } })
+            ToggleRow(stringResource(R.string.display_show_helper), null, settings.showHelperText, { on -> update { it.copy(showHelperText = on) } })
+            ToggleRow(stringResource(R.string.display_reduce_motion), null, settings.reduceMotion, { on -> update { it.copy(reduceMotion = on) } })
         }
         SectionCard(stringResource(R.string.display_sound_touch)) {
             // Choosing a speed, or turning reading aloud on, plays a short sample so the user can hear the result.
@@ -115,15 +114,15 @@ fun DisplaySettingsScreen(onBack: () -> Unit) {
                     if (on) preview(settings.speechRate)
                 },
             )
-            OptionRow(stringResource(R.string.speech_slow), stringResource(R.string.speech_sample_helper), settings.speechRate < 0.85f, {
+            OptionRow(stringResource(R.string.speech_slow), null, settings.speechRate < 0.85f, {
                 update { it.copy(speechRate = SLOW_RATE) }
                 preview(SLOW_RATE)
             })
-            OptionRow(stringResource(R.string.speech_normal), stringResource(R.string.speech_sample_helper), settings.speechRate >= 0.85f, {
+            OptionRow(stringResource(R.string.speech_normal), null, settings.speechRate >= 0.85f, {
                 update { it.copy(speechRate = NORMAL_RATE) }
                 preview(NORMAL_RATE)
             })
-            ToggleRow(stringResource(R.string.display_haptics), stringResource(R.string.display_haptics_helper), settings.haptics, { on -> update { it.copy(haptics = on) } })
+            ToggleRow(stringResource(R.string.display_haptics), null, settings.haptics, { on -> update { it.copy(haptics = on) } })
         }
     }
 }

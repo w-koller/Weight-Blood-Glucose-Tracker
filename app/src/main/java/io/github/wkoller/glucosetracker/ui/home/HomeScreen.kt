@@ -108,14 +108,12 @@ fun HomeScreen(actions: HomeActions) {
                 stringResource(R.string.home_check_bgl),
                 onClick = { actions.checkIn(null, false) },
                 icon = R.drawable.ic_water_drop,
-                helper = stringResource(R.string.home_check_bgl_helper),
                 style = ButtonStyle.SECONDARY,
             )
             BigButton(
                 stringResource(R.string.home_record_weight),
                 onClick = { actions.measure("weight") },
                 icon = R.drawable.ic_monitor_weight,
-                helper = stringResource(R.string.home_record_weight_helper),
                 style = ButtonStyle.SECONDARY,
             )
             if (ui.plan?.medicines?.isNotEmpty() == true) {
@@ -123,7 +121,6 @@ fun HomeScreen(actions: HomeActions) {
                     stringResource(R.string.home_medicines),
                     onClick = actions.medicines,
                     icon = R.drawable.ic_medication,
-                    helper = stringResource(R.string.home_medicines_helper),
                     style = ButtonStyle.SECONDARY,
                 )
             }
@@ -131,7 +128,6 @@ fun HomeScreen(actions: HomeActions) {
                 stringResource(R.string.home_logbook),
                 onClick = actions.logbook,
                 icon = R.drawable.ic_menu_book,
-                helper = stringResource(R.string.home_logbook_helper),
                 style = ButtonStyle.SECONDARY,
             )
             if (!simple) {
@@ -139,14 +135,12 @@ fun HomeScreen(actions: HomeActions) {
                     stringResource(R.string.home_progress),
                     onClick = actions.progress,
                     icon = R.drawable.ic_show_chart,
-                    helper = stringResource(R.string.home_progress_helper),
                     style = ButtonStyle.SECONDARY,
                 )
                 BigButton(
                     stringResource(R.string.home_assistant),
                     onClick = actions.assistant,
                     icon = R.drawable.ic_forum,
-                    helper = stringResource(R.string.home_assistant_helper),
                     style = ButtonStyle.SECONDARY,
                 )
             }
@@ -204,9 +198,7 @@ private fun DateChip(date: String, onClick: () -> Unit) {
             Spacer(Modifier.width(12.dp))
             Column {
                 Text(date, style = MaterialTheme.typography.titleLarge)
-                if (LocalUiPrefs.current.showHelperText) {
-                    Text(stringResource(R.string.home_date_helper), style = MaterialTheme.typography.bodyMedium)
-                }
+                Text(stringResource(R.string.home_date_label), style = MaterialTheme.typography.bodyMedium)
             }
         }
     }

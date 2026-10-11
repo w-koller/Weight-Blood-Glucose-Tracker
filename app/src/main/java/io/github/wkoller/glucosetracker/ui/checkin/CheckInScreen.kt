@@ -277,7 +277,6 @@ private fun AmountStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit) 
         onBack = onBack,
         actions = { BigButton(stringResource(R.string.next), onClick = vm::submitAmount, enabled = !ui.busy) },
     ) {
-        Text(stringResource(R.string.checkin_amount_body), style = MaterialTheme.typography.bodyLarge)
         ui.amountError?.let { error ->
             val message = when (error) {
                 NumberInput.TooHigh -> R.string.checkin_amount_too_high
@@ -303,7 +302,6 @@ private fun SkipReasonStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Un
         onBack = onBack,
         actions = {},
     ) {
-        Text(stringResource(R.string.checkin_reason_body), style = MaterialTheme.typography.bodyLarge)
         listOf(SkipReason.NOT_EATING, SkipReason.DOCTOR_ADVICE, SkipReason.OTHER).forEach { reason ->
             BigButton(stringResource(reason.labelRes()), onClick = { vm.chooseReason(reason) }, style = ButtonStyle.SECONDARY, enabled = !ui.busy)
         }
@@ -354,7 +352,6 @@ private fun TabletsStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit)
             }
         },
     ) {
-        Text(stringResource(R.string.checkin_tablets_body), style = MaterialTheme.typography.bodyLarge)
         ui.dueOthers.forEach { due ->
             SectionCard(due.medicine.displayName, icon = R.drawable.ic_medication) {
                 Text(UiFormat.dose(context, due.amount, due.medicine.kind, due.medicine.unit), style = MaterialTheme.typography.titleLarge)

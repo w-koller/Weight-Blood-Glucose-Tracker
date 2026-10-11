@@ -52,10 +52,9 @@ fun RemindersScreen(onBack: () -> Unit) {
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refresh++ }
 
     ScreenScaffold(title = stringResource(R.string.settings_reminders), onBack = onBack) {
-        Text(stringResource(R.string.reminders_body), style = MaterialTheme.typography.bodyLarge)
         ToggleRow(
             title = stringResource(R.string.reminders_on),
-            description = stringResource(R.string.reminders_on_helper),
+            description = null,
             checked = settings.remindersOn,
             onCheckedChange = { on ->
                 scope.launch {
@@ -100,7 +99,6 @@ fun RemindersScreen(onBack: () -> Unit) {
                 stringResource(R.string.reminders_test),
                 onClick = { current.activeSlots.firstOrNull()?.let { container.reminders.showCheckReminder(current, it.slot) } },
                 icon = R.drawable.ic_notifications,
-                helper = stringResource(R.string.reminders_test_helper),
                 style = ButtonStyle.SECONDARY,
             )
         }

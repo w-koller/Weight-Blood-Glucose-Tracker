@@ -58,12 +58,11 @@ fun PlanScreen(onBack: () -> Unit, onEdit: () -> Unit, onNew: () -> Unit, onHist
     val scope = rememberCoroutineScope()
     var editingName by remember { mutableStateOf(false) }
     ScreenScaffold(title = stringResource(R.string.settings_plan), onBack = onBack) {
-        Text(stringResource(R.string.plan_body), style = MaterialTheme.typography.bodyLarge)
         SectionCard(stringResource(R.string.plan_name_title), icon = R.drawable.ic_person) {
             Text(settings.fullName ?: stringResource(R.string.plan_name_none), style = MaterialTheme.typography.titleMedium)
             BigButton(stringResource(R.string.plan_name_change), onClick = { editingName = true }, icon = R.drawable.ic_edit, style = ButtonStyle.SECONDARY)
         }
-        BigButton(stringResource(R.string.plan_change), onClick = onEdit, icon = R.drawable.ic_edit, helper = stringResource(R.string.plan_change_helper))
+        BigButton(stringResource(R.string.plan_change), onClick = onEdit, icon = R.drawable.ic_edit)
         BigButton(stringResource(R.string.plan_new), onClick = onNew, icon = R.drawable.ic_add, helper = stringResource(R.string.plan_new_helper), style = ButtonStyle.SECONDARY)
         BigButton(stringResource(R.string.plan_history), onClick = onHistory, icon = R.drawable.ic_history, style = ButtonStyle.SECONDARY)
         BigButton(
@@ -170,7 +169,6 @@ fun PlanHistoryScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val plans by container.repository.planHistory.collectAsStateWithLifecycle(emptyList())
     ScreenScaffold(title = stringResource(R.string.plan_history), onBack = onBack) {
-        Text(stringResource(R.string.plan_history_body), style = MaterialTheme.typography.bodyLarge)
         plans.forEachIndexed { index, plan ->
             val previous = plans.getOrNull(index + 1)?.takeIf { it.cycleId == plan.cycleId }
             val from = UiFormat.dayLongYear(plan.effectiveFrom.atZone(java.time.ZoneId.systemDefault()).toLocalDate())
@@ -233,7 +231,6 @@ fun UnlockScreen(onBack: () -> Unit, onUnlocked: () -> Unit) {
             BigButton(stringResource(R.string.pin_forgot), onClick = { resetting = true }, style = ButtonStyle.SECONDARY)
         },
     ) {
-        Text(stringResource(R.string.unlock_pin_body), style = MaterialTheme.typography.bodyLarge)
         if (wrong) NoticeCard(NoticeKind.DANGER, stringResource(R.string.pin_wrong_title), stringResource(R.string.pin_wrong))
         ValueDisplay("●".repeat(pin.length), "")
         NumberPad(pin, { pin = it.take(4); wrong = false }, maxDecimals = 0, maxIntegerDigits = 4)

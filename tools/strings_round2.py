@@ -4,7 +4,6 @@ STRINGS = {
     "text_size_small": "Small",
     "text_size_medium": "Medium",
     "speech_sample": "This is how the app will read your results aloud.",
-    "speech_sample_helper": "Plays a short sample when you choose it.",
 
     "home_hello": "Hello",
     "home_good_morning_name": "Good morning, %1$s",
@@ -12,7 +11,7 @@ STRINGS = {
     "home_good_evening_name": "Good evening, %1$s",
     "home_hello_name": "Hello, %1$s",
     "home_date_description": "%1$s. Open your calendar.",
-    "home_date_helper": "Tap to see your calendar.",
+    "home_date_label": "Open your calendar",
 
     "setup_about_title": "About you",
     "setup_about_body": "The app uses your first name in greetings, and your full name on reports for your doctor. You can leave both empty.",
@@ -21,7 +20,7 @@ STRINGS = {
     "setup_family_name": "Family name",
 
     "setup_assistant_title": "The assistant",
-    "setup_assistant_question": "Would you like to download the assistant now? The model is 2.6 GB. It will download when you are connected to Wi-Fi, and you can keep using the app in the meantime. You can also set it up later in Settings.",
+    "setup_assistant_question": "Would you like to download the assistant now? The model is 2.6 GB and downloads when you are connected to Wi-Fi. You can also set it up later in Settings.",
     "setup_assistant_yes": "Download the assistant on Wi-Fi",
     "setup_assistant_no": "Not now",
     "setup_assistant_memory_title": "The assistant may be slow on this phone",
@@ -30,9 +29,7 @@ STRINGS = {
     "setup_assistant_chosen_yes": "The assistant will download when you are connected to Wi-Fi.",
     "setup_assistant_chosen_no": "The assistant is not set up. You can set it up later in Settings.",
 
-    "setup_scale_start": "Most orders use a similar scale. Would you like to start from the common scale, or from an empty table?",
     "setup_scale_empty": "Start with an empty table",
-    "setup_scale_empty_helper": "Five rows for ranges and one row for readings above them. You can add or remove rows.",
     "setup_scale_up_to": "%1$s up to",
     "setup_scale_above_unknown": "Above the last range",
     "setup_scale_upper_description": "Top of the range that starts at %1$s mmol/L",
@@ -44,12 +41,11 @@ STRINGS = {
     "scale_row_name_range": "the row that starts at %1$s mmol/L",
     "scale_row_name_last": "the last row",
     "scale_row_name_number": "row %1$d",
-    "error_scale_boxes_empty": "Please fill in every box in the table. The boxes that still need a number have a red outline.",
-    "error_scale_empty": "Please fill in your sliding scale. You can start from the common scale and change any row.",
+    "error_scale_boxes_empty": "Please fill in every box in the table.",
+    "error_scale_empty": "Please fill in your sliding scale.",
 
     "logbook_view_calendar": "Calendar",
     "logbook_view_list": "List",
-    "logbook_calendar_body": "Each day shows how much was recorded. Please choose a day to see or change its records.",
     "calendar_earlier": "Earlier month",
     "calendar_later": "Later month",
     "calendar_complete": "all recorded",

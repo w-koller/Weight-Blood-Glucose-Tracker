@@ -42,7 +42,6 @@ fun ProgressScreen(onBack: () -> Unit) {
     val dayFormat = { millis: Long -> UiFormat.dayShort(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()) }
 
     ScreenScaffold(title = stringResource(R.string.progress_title), onBack = onBack) {
-        Text(stringResource(R.string.progress_body), style = MaterialTheme.typography.bodyLarge)
 
         ui.weight?.takeIf { it.current != null }?.let { weight ->
             SectionCard(stringResource(R.string.progress_weight_title), icon = R.drawable.ic_monitor_weight) {

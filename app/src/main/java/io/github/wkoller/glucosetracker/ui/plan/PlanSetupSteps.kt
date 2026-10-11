@@ -218,7 +218,6 @@ fun ColumnScope.ScaleStep(ui: SetupUi, vm: PlanSetupViewModel) {
     Body(stringResource(R.string.setup_scale_body))
     ScaleErrors(ui.errors, draft)
     if (draft.bands.isEmpty()) {
-        Body(stringResource(R.string.setup_scale_start))
         BigButton(
             stringResource(R.string.setup_scale_common),
             onClick = vm::useCommonScale,
@@ -227,7 +226,6 @@ fun ColumnScope.ScaleStep(ui: SetupUi, vm: PlanSetupViewModel) {
         BigButton(
             stringResource(R.string.setup_scale_empty),
             onClick = vm::startEmptyTable,
-            helper = stringResource(R.string.setup_scale_empty_helper),
             style = ButtonStyle.SECONDARY,
         )
         return
@@ -419,7 +417,7 @@ fun ColumnScope.TimesStep(ui: SetupUi, vm: PlanSetupViewModel) {
             )
             ToggleRow(
                 title = stringResource(R.string.setup_times_prescribed, draft.correctionInsulin.ifBlank { stringResource(R.string.insulin_fallback) }),
-                description = stringResource(R.string.setup_times_prescribed_helper),
+                description = null,
                 checked = slot.correctionPrescribed,
                 onCheckedChange = { checked -> vm.setSlot(slot.slot) { it.copy(correctionPrescribed = checked) } },
             )
@@ -549,7 +547,6 @@ fun ColumnScope.TargetsStep(ui: SetupUi, vm: PlanSetupViewModel) {
     LabeledField(stringResource(R.string.setup_target_low), draft.targetLow, { t -> vm.edit { it.copy(targetLow = t) } }, suffix = stringResource(R.string.unit_mmol), numeric = true)
     LabeledField(stringResource(R.string.setup_target_high), draft.targetHigh, { t -> vm.edit { it.copy(targetHigh = t) } }, suffix = stringResource(R.string.unit_mmol), numeric = true)
     LabeledField(stringResource(R.string.setup_hypo), draft.hypo, { t -> vm.edit { it.copy(hypo = t) } }, suffix = stringResource(R.string.unit_mmol), numeric = true)
-    Body(stringResource(R.string.setup_hypo_helper, draft.correctionInsulin.ifBlank { stringResource(R.string.insulin_fallback) }))
 }
 
 @Composable
@@ -626,7 +623,7 @@ fun ColumnScope.ReviewStep(ui: SetupUi, vm: PlanSetupViewModel) {
     val context = LocalContext.current
     val draft = ui.draft
     val insulin = draft.correctionInsulin
-    if (ui.mode == SetupMode.EDIT) Body(stringResource(R.string.setup_review_edit_body)) else Body(stringResource(R.string.setup_review_body))
+    if (ui.mode != SetupMode.EDIT) Body(stringResource(R.string.setup_review_body))
 
     if (ui.mode == SetupMode.FIRST) {
         SectionCard(stringResource(R.string.setup_about_title)) {

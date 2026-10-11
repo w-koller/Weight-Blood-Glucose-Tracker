@@ -69,7 +69,6 @@ fun LogbookScreen(onBack: () -> Unit, onDay: (LocalDate) -> Unit) {
             OptionRow(stringResource(R.string.logbook_view_list), null, showList, { showList = true }, modifier = Modifier.weight(1f))
         }
         if (!showList) {
-            Text(stringResource(R.string.logbook_calendar_body), style = MaterialTheme.typography.bodyLarge)
             MonthCalendar(
                 month = calendar.month,
                 statuses = calendar.statuses,
@@ -83,7 +82,6 @@ fun LogbookScreen(onBack: () -> Unit, onDay: (LocalDate) -> Unit) {
             SectionCard(stringResource(R.string.calendar_legend_title)) { CalendarLegend() }
             return@ScreenScaffold
         }
-        Text(stringResource(R.string.logbook_body), style = MaterialTheme.typography.bodyLarge)
         if (!ui.loading && ui.days.isEmpty()) {
             Text(stringResource(R.string.logbook_empty), style = MaterialTheme.typography.titleMedium)
         }
@@ -154,7 +152,6 @@ fun DayScreen(onBack: () -> Unit) {
     var deleting by remember { mutableStateOf<Any?>(null) }
 
     ScreenScaffold(title = UiFormat.dayLong(vm.date), onBack = onBack, snackbarHostState = snackbar) {
-        Text(stringResource(R.string.day_body), style = MaterialTheme.typography.bodyLarge)
         val current = day
         if (current == null) {
             Text(stringResource(R.string.day_empty), style = MaterialTheme.typography.titleMedium)
