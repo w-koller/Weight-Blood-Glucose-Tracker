@@ -4,6 +4,7 @@ import android.content.Context
 import io.github.wkoller.glucosetracker.data.TrackerRepository
 import io.github.wkoller.glucosetracker.data.db.AppDatabase
 import io.github.wkoller.glucosetracker.data.prefs.SettingsStore
+import io.github.wkoller.glucosetracker.reminders.ReminderScheduler
 import io.github.wkoller.glucosetracker.tts.Speaker
 import java.time.Clock
 
@@ -15,10 +16,11 @@ class AppContainer(context: Context) {
     val repository = TrackerRepository(database, clock)
     val settingsStore = SettingsStore(appContext)
     val speaker = Speaker(appContext)
+    val reminders = ReminderScheduler(appContext, repository, settingsStore, clock)
 
     /** Called after a plan is saved, so anything that depends on the plan can catch up. */
-    suspend fun onPlanChanged() = Unit
+    suspend fun onPlanChanged() = reminders.rescheduleAll()
 
     /** Called when the user starts the 15-minute timer after a low reading. */
-    suspend fun onRecheckRequested(at: java.time.Instant) = Unit
+    fun onRecheckRequested(at: java.time.Instant) = reminders.scheduleRecheck(at)
 }

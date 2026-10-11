@@ -48,4 +48,17 @@ object UiFormat {
     }
 
     fun units(context: Context, amount: Double): String = dose(context, amount, MedicineKind.INSULIN, "")
+
+    /** "once", "2 times" */
+    fun times(context: Context, count: Int): String = context.resources.getQuantityString(R.plurals.times_plural, count, count)
+
+    /** "1 reading", "2 readings" */
+    fun readings(context: Context, count: Int): String = context.resources.getQuantityString(R.plurals.readings_plural, count, count)
+
+    /** "a", "a and b", "a, b and c" */
+    fun joinWithAnd(context: Context, items: List<String>): String = when (items.size) {
+        0 -> ""
+        1 -> items[0]
+        else -> context.getString(R.string.list_and, items.dropLast(1).joinToString(", "), items.last())
+    }
 }

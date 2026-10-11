@@ -252,7 +252,7 @@ private fun noticeText(notice: DoseNotice, ui: CheckInUi, unitsText: String): No
             val body = if (listed.isEmpty()) {
                 stringResource(R.string.checkin_notice_not_prescribed_none, insulin, unitsText, stringResource(ui.slot.phraseRes()))
             } else {
-                stringResource(R.string.checkin_notice_not_prescribed, insulin, joinWithAnd(listed), unitsText, stringResource(ui.slot.phraseRes()))
+                stringResource(R.string.checkin_notice_not_prescribed, insulin, UiFormat.joinWithAnd(context, listed), unitsText, stringResource(ui.slot.phraseRes()))
             }
             NoticeText(NoticeKind.WARNING, body, stringResource(R.string.checkin_notice_not_prescribed_title))
         }
@@ -470,12 +470,4 @@ private fun AutoSpeak(text: String) {
     val prefs = LocalUiPrefs.current
     val speaker = LocalSpeaker.current
     LaunchedEffect(text) { if (prefs.readAloud) speaker?.speak(text, prefs.speechRate) }
-}
-
-/** "a", "a and b", "a, b and c". */
-@Composable
-private fun joinWithAnd(items: List<String>): String = when (items.size) {
-    0 -> ""
-    1 -> items[0]
-    else -> stringResource(R.string.list_and, items.dropLast(1).joinToString(", "), items.last())
 }

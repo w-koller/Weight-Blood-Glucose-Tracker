@@ -98,10 +98,10 @@ fun MedicinesScreen(onBack: () -> Unit, onRecord: (Slot) -> Unit) {
             }
         }
         SectionCard(stringResource(R.string.medicines_week_title)) {
-            ui.week.forEach { FactRow(it.medicineName, stringResource(R.string.medicines_adherence, it.given, it.scheduled)) }
+            ui.week.forEach { FactRow(it.medicineName, context.resources.getQuantityString(R.plurals.medicines_adherence, it.scheduled, it.given, it.scheduled)) }
         }
         SectionCard(stringResource(R.string.medicines_month_title)) {
-            ui.month.forEach { FactRow(it.medicineName, stringResource(R.string.medicines_adherence, it.given, it.scheduled)) }
+            ui.month.forEach { FactRow(it.medicineName, context.resources.getQuantityString(R.plurals.medicines_adherence, it.scheduled, it.given, it.scheduled)) }
         }
     }
 }

@@ -103,7 +103,8 @@ fun readingText(context: Context, reading: GlucoseReading): String {
         MeterFlag.HI -> context.getString(R.string.checkin_reading_hi)
         null -> context.getString(R.string.bgl_amount, Measures.formatTenths(reading.tenths))
     }
-    return context.getString(R.string.logbook_reading, value, UiFormat.time(context, reading.takenAt))
+    val text = context.getString(R.string.logbook_reading, value, UiFormat.time(context, reading.takenAt))
+    return reading.note?.let { context.getString(R.string.logbook_with_note, text, it) } ?: text
 }
 
 fun doseText(context: Context, dose: DoseRecord): String = when (dose.status) {
@@ -213,20 +214,27 @@ private fun EditDialog(title: String, onSave: () -> Unit, onDismiss: () -> Unit,
 private fun EditReadingDialog(reading: GlucoseReading, onSave: (GlucoseReading) -> Unit, onDismiss: () -> Unit) {
     var text by remember { mutableStateOf(if (reading.meterFlag == null) Measures.formatTenths(reading.tenths) else "") }
     var slot by remember { mutableStateOf(reading.slot) }
+    var note by remember { mutableStateOf(reading.note.orEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
     val invalid = stringResource(R.string.edit_bgl_invalid)
     EditDialog(
         title = stringResource(R.string.edit_reading_title),
         onSave = {
-            when (val input = InputValidator.bgl(text)) {
-                is NumberInput.Valid -> onSave(reading.copy(tenths = input.value, meterFlag = null, slot = slot))
-                else -> error = invalid
+            val cleanNote = note.trim().ifBlank { null }
+            when {
+                // A LO or HI reading keeps its value unless a new number is typed.
+                text.isBlank() && reading.meterFlag != null -> onSave(reading.copy(slot = slot, note = cleanNote))
+                else -> when (val input = InputValidator.bgl(text)) {
+                    is NumberInput.Valid -> onSave(reading.copy(tenths = input.value, meterFlag = null, slot = slot, note = cleanNote))
+                    else -> error = invalid
+                }
             }
         },
         onDismiss = onDismiss,
     ) {
         LabeledField(stringResource(R.string.bgl_short_label), text, { text = it; error = null }, suffix = stringResource(R.string.unit_mmol), error = error, numeric = true)
         Slot.entries.forEach { s -> OptionRow(stringResource(s.nameRes()), null, slot == s, { slot = s }) }
+        LabeledField(stringResource(R.string.edit_note), note, { note = it }, hint = stringResource(R.string.edit_note_hint), singleLine = false)
     }
 }
 

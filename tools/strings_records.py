@@ -62,9 +62,9 @@ STRINGS = {
     "progress_highest": "Highest",
     "progress_reading_on": "%1$s mmol/L on %2$s",
     "progress_by_time": "Average by time of day",
-    "progress_slot_average": "%1$s mmol/L from %2$d readings",
-    "progress_correction_summary": "Given %1$d times, %2$s in total. Not given %3$d times.",
-    "progress_fixed_summary": "Given %1$d times. Not given %2$d times.",
+    "progress_slot_average": "%1$s mmol/L from %2$s",
+    "progress_correction_summary": "Given %1$s, %2$s in total. Not given %3$s.",
+    "progress_fixed_summary": "Given %1$s. Not given %2$s.",
 
     "medicines_title": "Medicines",
     "medicines_body": "These are the medicines in your plan for today. You can record any that you have not recorded yet.",
@@ -75,5 +75,13 @@ STRINGS = {
     "medicines_record": "Record medicines %1$s",
     "medicines_week_title": "The last 7 days",
     "medicines_month_title": "The last 30 days",
-    "medicines_adherence": "Recorded as taken %1$d of %2$d times",
+    "edit_note": "Note",
+    "edit_note_hint": "For example, I did not have lunch today",
+    "logbook_with_note": "%1$s. Note: %2$s",
+}
+
+PLURALS = {
+    "times_plural": {"one": "once", "other": "%1$d times"},
+    "readings_plural": {"one": "%1$d reading", "other": "%1$d readings"},
+    "medicines_adherence": {"one": "Recorded as taken %1$d of %2$d time", "other": "Recorded as taken %1$d of %2$d times"},
 }

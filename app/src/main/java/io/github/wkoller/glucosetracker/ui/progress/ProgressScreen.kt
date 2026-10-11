@@ -114,7 +114,7 @@ fun ProgressScreen(onBack: () -> Unit) {
                 summary.perSlot.forEach { slot ->
                     FactRow(
                         stringResource(slot.slot.nameRes()),
-                        stringResource(R.string.progress_slot_average, Measures.formatTenths(slot.averageTenths ?: 0), slot.count),
+                        stringResource(R.string.progress_slot_average, Measures.formatTenths(slot.averageTenths ?: 0), UiFormat.readings(context, slot.count)),
                     )
                 }
             }
@@ -125,9 +125,9 @@ fun ProgressScreen(onBack: () -> Unit) {
                 ui.doses.forEach { dose ->
                     val total = UiFormat.dose(context, dose.totalGiven, dose.medicineKind, dose.unit)
                     val text = if (dose.kind == DoseKind.CORRECTION) {
-                        stringResource(R.string.progress_correction_summary, dose.givenCount, total, dose.skippedCount)
+                        stringResource(R.string.progress_correction_summary, UiFormat.times(context, dose.givenCount), total, UiFormat.times(context, dose.skippedCount))
                     } else {
-                        stringResource(R.string.progress_fixed_summary, dose.givenCount, dose.skippedCount)
+                        stringResource(R.string.progress_fixed_summary, UiFormat.times(context, dose.givenCount), UiFormat.times(context, dose.skippedCount))
                     }
                     FactRow(dose.medicineName, text)
                 }
