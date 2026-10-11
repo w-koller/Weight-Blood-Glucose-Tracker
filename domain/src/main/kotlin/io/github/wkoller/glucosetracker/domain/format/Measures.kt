@@ -16,6 +16,9 @@ object Measures {
         return "$sign${value / 10}.${value % 10}"
     }
 
+    /** Like [formatTenths] but drops a trailing ".0", as on a paper sliding scale: 100 → "10", 101 → "10.1". */
+    fun formatTenthsShort(tenths: Int): String = formatTenths(tenths).removeSuffix(".0")
+
     /** 116510 g → "116.51", 116300 g → "116.3", 100000 g → "100". */
     fun formatKg(grams: Int): String = stripZeros(BigDecimal(grams).divide(BigDecimal(1000)).setScale(2, RoundingMode.HALF_UP))
 
