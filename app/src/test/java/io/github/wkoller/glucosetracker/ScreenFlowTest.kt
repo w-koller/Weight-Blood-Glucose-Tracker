@@ -373,7 +373,8 @@ class ScreenFlowTest {
         val directory = app.getExternalFilesDir(io.github.wkoller.glucosetracker.ai.ModelManager.MODEL_DIR)!!.apply { mkdirs() }
         org.robolectric.shadows.ShadowStatFs.registerStats(directory, 2_000_000, 2_000_000, 2_000_000)
         models.startDownload()
-        assertTrue(models.state.value is io.github.wkoller.glucosetracker.ai.ModelState.Downloading)
+        // The assistant's state follows the download a moment later.
+        waitForBackgroundWork { models.state.value is io.github.wkoller.glucosetracker.ai.ModelState.Downloading }
         models.cancelDownload()
     }
 

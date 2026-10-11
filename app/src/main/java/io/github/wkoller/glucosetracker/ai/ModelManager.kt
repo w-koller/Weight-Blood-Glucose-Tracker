@@ -1,27 +1,42 @@
 package io.github.wkoller.glucosetracker.ai
 
-import android.app.DownloadManager
 import android.content.Context
-import android.net.Uri
-import android.os.StatFs
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
-import io.github.wkoller.glucosetracker.CrashReporter
+import io.github.wkoller.glucosetracker.R
+import io.github.wkoller.glucosetracker.download.DownloadSpec
+import io.github.wkoller.glucosetracker.download.DownloadState
+import io.github.wkoller.glucosetracker.download.VerifiedDownload
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.security.MessageDigest
+
+private fun DownloadState.toModelState(): ModelState = when (this) {
+    DownloadState.NotDownloaded -> ModelState.NotDownloaded
+    is DownloadState.Downloading -> ModelState.Downloading(downloadedBytes, totalBytes)
+    DownloadState.WaitingForWifi -> ModelState.WaitingForWifi
+    DownloadState.Verifying -> ModelState.Verifying
+    DownloadState.Complete -> ModelState.Ready
+    is DownloadState.Failed -> ModelState.Failed(
+        when (reason) {
+            DownloadState.Reason.NOT_ENOUGH_SPACE -> ModelState.Reason.NOT_ENOUGH_SPACE
+            DownloadState.Reason.DOWNLOAD_FAILED -> ModelState.Reason.DOWNLOAD_FAILED
+            DownloadState.Reason.CHECK_FAILED -> ModelState.Reason.CHECK_FAILED
+        },
+    )
+}
 
 sealed interface ModelState {
     data object NotDownloaded : ModelState
@@ -40,152 +55,49 @@ sealed interface ModelState {
  * The model is loaded only while the assistant is in use and is released after two idle minutes.
  */
 class ModelManager(private val context: Context) {
-    private val downloads = context.getSystemService(DownloadManager::class.java)
-    private val prefs = context.getSharedPreferences("model", Context.MODE_PRIVATE)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val engineLock = Mutex()
     private var engine: Engine? = null
     private var idleJob: Job? = null
-    private var pollJob: Job? = null
 
-    private val directory: File get() = context.getExternalFilesDir(MODEL_DIR) ?: File(context.filesDir, MODEL_DIR)
-    val modelFile: File get() = File(directory, MODEL_FILE)
+    private val download = VerifiedDownload(
+        context,
+        DownloadSpec(
+            key = "model",
+            url = MODEL_URL,
+            directory = MODEL_DIR,
+            fileName = MODEL_FILE,
+            bytes = MODEL_BYTES,
+            sha256 = MODEL_SHA256,
+            title = context.getString(R.string.assistant_download_title),
+            description = context.getString(R.string.assistant_download_description),
+            spaceMargin = SPACE_MARGIN,
+        ),
+    )
+    val modelFile: File get() = download.file
 
-    private val _state = MutableStateFlow<ModelState>(ModelState.NotDownloaded)
-    val state: StateFlow<ModelState> = _state.asStateFlow()
+    /** The download's progress, in the terms the assistant screens use. */
+    val state: StateFlow<ModelState> = download.state
+        .map { it.toModelState() }
+        .stateIn(scope, SharingStarted.Eagerly, ModelState.NotDownloaded)
 
     init {
-        scope.launch { refresh() }
+        scope.launch { download.refresh() }
     }
 
-    /** Reads the state from disk and the download manager. Safe to call often. */
-    suspend fun refresh() {
-        val id = prefs.getLong(KEY_DOWNLOAD_ID, -1L)
-        when {
-            prefs.getBoolean(KEY_VERIFIED, false) && modelFile.length() == MODEL_BYTES -> _state.value = ModelState.Ready
-            id >= 0 -> pollDownload(id)
-            modelFile.exists() && modelFile.length() == MODEL_BYTES -> verify()
-            else -> if (_state.value !is ModelState.Failed) _state.value = ModelState.NotDownloaded
-        }
-    }
+    suspend fun refresh() = download.refresh()
 
-    fun hasRoomForModel(): Boolean {
-        directory.mkdirs()
-        return StatFs(directory.path).availableBytes > MODEL_BYTES + SPACE_MARGIN
-    }
+    fun hasRoomForModel(): Boolean = download.hasRoom()
 
-    fun startDownload() {
-        if (!hasRoomForModel()) {
-            _state.value = ModelState.Failed(ModelState.Reason.NOT_ENOUGH_SPACE)
-            return
-        }
-        directory.mkdirs()
-        modelFile.delete()
-        val request = DownloadManager.Request(Uri.parse(MODEL_URL))
-            .setTitle(context.getString(io.github.wkoller.glucosetracker.R.string.assistant_download_title))
-            .setDescription(context.getString(io.github.wkoller.glucosetracker.R.string.assistant_download_description))
-            .setDestinationInExternalFilesDir(context, MODEL_DIR, MODEL_FILE)
-            .setAllowedNetworkTypes(DownloadManager.Request.NETWORK_WIFI)
-            .setAllowedOverMetered(false)
-            .setAllowedOverRoaming(false)
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-        val id = try {
-            downloads.enqueue(request)
-        } catch (error: RuntimeException) {
-            // For example a SecurityException if the download manager refuses the request. Report it instead of crashing.
-            CrashReporter.record(context, error)
-            _state.value = ModelState.Failed(ModelState.Reason.DOWNLOAD_FAILED)
-            return
-        }
-        prefs.edit().putLong(KEY_DOWNLOAD_ID, id).putBoolean(KEY_VERIFIED, false).apply()
-        _state.value = ModelState.Downloading(0, MODEL_BYTES)
-        watchDownload()
-    }
+    fun startDownload() = download.start()
 
-    /** Polls the download while a screen is showing its progress. */
-    fun watchDownload() {
-        if (pollJob?.isActive == true) return
-        pollJob = scope.launch {
-            while (true) {
-                refresh()
-                val current = _state.value
-                if (current !is ModelState.Downloading && current !is ModelState.WaitingForWifi) break
-                delay(1_000)
-            }
-        }
-    }
+    fun watchDownload() = download.watch()
 
-    fun cancelDownload() {
-        val id = prefs.getLong(KEY_DOWNLOAD_ID, -1L)
-        if (id >= 0) downloads.remove(id)
-        prefs.edit().remove(KEY_DOWNLOAD_ID).apply()
-        modelFile.delete()
-        _state.value = ModelState.NotDownloaded
-    }
+    fun cancelDownload() = download.cancel()
 
     suspend fun delete() {
         unload()
-        cancelDownload()
-        prefs.edit().putBoolean(KEY_VERIFIED, false).apply()
-        modelFile.delete()
-        _state.value = ModelState.NotDownloaded
-    }
-
-    private suspend fun pollDownload(id: Long) {
-        val cursor = downloads.query(DownloadManager.Query().setFilterById(id))
-        cursor.use {
-            if (!it.moveToFirst()) {
-                prefs.edit().remove(KEY_DOWNLOAD_ID).apply()
-                _state.value = ModelState.NotDownloaded
-                return
-            }
-            val status = it.getInt(it.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-            val done = it.getLong(it.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
-            val total = it.getLong(it.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)).takeIf { t -> t > 0 } ?: MODEL_BYTES
-            val reason = it.getInt(it.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
-            when (status) {
-                DownloadManager.STATUS_SUCCESSFUL -> {
-                    prefs.edit().remove(KEY_DOWNLOAD_ID).apply()
-                    verify()
-                }
-                DownloadManager.STATUS_FAILED -> {
-                    prefs.edit().remove(KEY_DOWNLOAD_ID).apply()
-                    downloads.remove(id)
-                    _state.value = ModelState.Failed(
-                        if (reason == DownloadManager.ERROR_INSUFFICIENT_SPACE) ModelState.Reason.NOT_ENOUGH_SPACE else ModelState.Reason.DOWNLOAD_FAILED,
-                    )
-                }
-                DownloadManager.STATUS_PAUSED -> _state.value =
-                    if (reason == DownloadManager.PAUSED_QUEUED_FOR_WIFI || reason == DownloadManager.PAUSED_WAITING_FOR_NETWORK) ModelState.WaitingForWifi
-                    else ModelState.Downloading(done, total)
-                else -> _state.value = ModelState.Downloading(done, total)
-            }
-        }
-    }
-
-    /** Checks the downloaded file against the published hash, so a damaged file is never loaded. */
-    private suspend fun verify() {
-        _state.value = ModelState.Verifying
-        val ok = withContext(Dispatchers.IO) {
-            if (modelFile.length() != MODEL_BYTES) return@withContext false
-            val digest = MessageDigest.getInstance("SHA-256")
-            modelFile.inputStream().buffered(1 shl 20).use { input ->
-                val buffer = ByteArray(1 shl 20)
-                while (true) {
-                    val read = input.read(buffer)
-                    if (read < 0) break
-                    digest.update(buffer, 0, read)
-                }
-            }
-            digest.digest().joinToString("") { "%02x".format(it) } == MODEL_SHA256
-        }
-        prefs.edit().putBoolean(KEY_VERIFIED, ok).apply()
-        if (ok) {
-            _state.value = ModelState.Ready
-        } else {
-            modelFile.delete()
-            _state.value = ModelState.Failed(ModelState.Reason.CHECK_FAILED)
-        }
+        download.cancel()
     }
 
     /** Runs [block] with a loaded engine, loading the model first if needed. */
@@ -205,7 +117,7 @@ class ModelManager(private val context: Context) {
     val isLoaded: Boolean get() = engine != null
 
     private suspend fun load(): Engine = withContext(Dispatchers.Default) {
-        check(_state.value == ModelState.Ready) { "The model is not ready" }
+        check(download.state.value == DownloadState.Complete) { "The model is not ready" }
         // The GPU is faster and uses less memory; not every phone supports it, so the CPU is the fallback.
         val backends = listOf<Backend>(Backend.GPU(), Backend.CPU())
         var lastError: Throwable? = null
@@ -244,7 +156,5 @@ class ModelManager(private val context: Context) {
         private const val SPACE_MARGIN = 400L * 1024 * 1024
         private const val MAX_TOKENS = 4096
         private const val IDLE_UNLOAD_MS = 2 * 60 * 1000L
-        private const val KEY_DOWNLOAD_ID = "download_id"
-        private const val KEY_VERIFIED = "verified"
     }
 }

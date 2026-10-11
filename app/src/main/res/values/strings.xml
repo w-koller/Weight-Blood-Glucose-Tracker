@@ -668,6 +668,8 @@
     <string name="about_problem_share">Share the problem report</string>
     <string name="about_problem_share_title">Share the problem report</string>
     <string name="about_problem_delete">Delete the report</string>
+    <string name="voice_download_title">Downloading natural voices</string>
+    <string name="voice_download_description">Natural voices for the Weight &amp; Glucose Tracker</string>
     <plurals name="readout_lows">
         <item quantity="one">You had %1$d low reading. Please tell your doctor about any low readings.</item>
         <item quantity="other">You had %1$d low readings. Please tell your doctor about any low readings.</item>

@@ -34,6 +34,8 @@ data class Settings(
     val assistantEnabled: Boolean = false,
     val firstName: String = "",
     val familyName: String = "",
+    /** The chosen voice, as written by VoiceChoice.encode(). Empty means the phone's default voice. */
+    val voice: String = "",
 ) {
     val hasPin: Boolean get() = pinHash != null && pinSalt != null
 
@@ -63,6 +65,7 @@ class SettingsStore(private val context: Context) {
         val assistantEnabled = booleanPreferencesKey("assistant_enabled")
         val firstName = stringPreferencesKey("first_name")
         val familyName = stringPreferencesKey("family_name")
+        val voice = stringPreferencesKey("voice")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { it.toSettings() }
@@ -93,6 +96,7 @@ class SettingsStore(private val context: Context) {
             assistantEnabled = this[Keys.assistantEnabled] ?: defaults.assistantEnabled,
             firstName = this[Keys.firstName] ?: defaults.firstName,
             familyName = this[Keys.familyName] ?: defaults.familyName,
+            voice = this[Keys.voice] ?: defaults.voice,
         )
     }
 
@@ -119,5 +123,6 @@ class SettingsStore(private val context: Context) {
         this[Keys.assistantEnabled] = s.assistantEnabled
         this[Keys.firstName] = s.firstName.trim()
         this[Keys.familyName] = s.familyName.trim()
+        this[Keys.voice] = s.voice
     }
 }
