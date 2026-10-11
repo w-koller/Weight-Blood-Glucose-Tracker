@@ -10,7 +10,7 @@ STRINGS = {
 
     "voice_natural_title": "Natural voices",
     "voice_natural_body": "Natural voices sound more like a person speaking. They have American and British accents.",
-    "voice_natural_download_question": "The voices are 98 MB. Would you like to download them now? They download when you are connected to Wi-Fi.",
+    "voice_natural_download_question": "The voices are 98 MB. Would you like to download them now?",
     "voice_natural_download": "Download natural voices",
     "voice_natural_downloading_body": "You can leave this screen while the voices download.",
     "voice_natural_installing": "Installing the voices.",
@@ -24,6 +24,18 @@ STRINGS = {
     "voice_natural_failed_title": "The natural voices could not be set up",
     "voice_natural_failed_space": "Your phone does not have enough free space. The voices need about 300 MB. Please free some space and try again.",
     "voice_natural_failed_install": "The voices could not be installed. Please try again.",
+    "setup_welcome_theme": "Please choose how the app looks. You can change it later in Settings.",
+    "setup_voices_question": "Would you like to download the natural voices now? They are 98 MB. You can also download them later in Settings.",
+    "setup_voices_chosen_yes": "The natural voices will download when you are connected to Wi-Fi.",
+    "setup_voices_chosen_mobile": "The natural voices will start downloading when you finish setting up. They may use mobile data.",
+    "setup_voices_chosen_no": "The natural voices are not downloaded. You can download them later in Settings.",
+
+    "download_mobile_title": "You are not connected to Wi-Fi",
+    "download_mobile_body": "The download is %1$s. Downloading it over mobile data may incur charges from your mobile provider.",
+    "download_mobile_question": "Would you like to wait until you are connected to Wi-Fi, or download it now using mobile data?",
+    "download_mobile_wait": "Wait for Wi-Fi",
+    "download_mobile_yes": "Download using mobile data",
+    "download_use_mobile": "Download now using mobile data",
     "voice_download_title": "Downloading natural voices",
     "voice_download_description": "Natural voices for the Weight & Glucose Tracker",
 }

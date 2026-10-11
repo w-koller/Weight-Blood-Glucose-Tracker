@@ -20,13 +20,14 @@ STRINGS = {
     "setup_family_name": "Family name",
 
     "setup_assistant_title": "The assistant",
-    "setup_assistant_question": "Would you like to download the assistant now? The model is 2.6 GB and downloads when you are connected to Wi-Fi. You can also set it up later in Settings.",
-    "setup_assistant_yes": "Download the assistant on Wi-Fi",
+    "setup_assistant_question": "Would you like to download the assistant now? The model is 2.6 GB. You can also set it up later in Settings.",
+    "setup_assistant_yes": "Download the assistant",
     "setup_assistant_no": "Not now",
     "setup_assistant_memory_title": "The assistant may be slow on this phone",
     "setup_assistant_memory": "The assistant works best on phones with at least 6 GB of memory. This phone has less, so its answers may be slow.",
     "setup_assistant_space_title": "Not enough free space",
     "setup_assistant_chosen_yes": "The assistant will download when you are connected to Wi-Fi.",
+    "setup_assistant_chosen_mobile": "The assistant will start downloading when you finish setting up. It may use mobile data.",
     "setup_assistant_chosen_no": "The assistant is not set up. You can set it up later in Settings.",
 
     "setup_scale_empty": "Start with an empty table",

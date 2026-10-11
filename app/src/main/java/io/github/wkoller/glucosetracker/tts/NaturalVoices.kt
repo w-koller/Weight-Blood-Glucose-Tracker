@@ -117,12 +117,16 @@ class NaturalVoices(private val context: Context) {
         }
     }
 
-    fun start() {
+    fun start(allowMobileData: Boolean = false) {
         install.value = Install.NONE
-        download.start()
+        download.start(allowMobileData)
     }
 
+    fun downloadWithMobileData() = download.restartWithMobileData()
+
     fun watch() = download.watch()
+
+    fun hasRoom(): Boolean = download.hasRoom()
 
     fun cancel() = download.cancel()
 
@@ -255,6 +259,7 @@ class NaturalVoices(private val context: Context) {
 
     companion object {
         const val MODEL_NAME = "kokoro-int8-en-v0_19"
+        const val SIZE_TEXT = "98 MB"
         const val VOICES_DIR = "voices"
         const val ARCHIVE_URL = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-en-v0_19.tar.bz2"
         const val ARCHIVE_BYTES = 103_248_205L

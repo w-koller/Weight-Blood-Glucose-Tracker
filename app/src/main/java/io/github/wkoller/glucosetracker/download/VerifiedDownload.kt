@@ -46,8 +46,9 @@ data class DownloadSpec(
 )
 
 /**
- * A large file fetched with Android's download manager: Wi-Fi only, resumable, shown in the
- * notifications, and checked against its published SHA-256 before it is used.
+ * A large file fetched with Android's download manager: resumable, shown in the notifications, and
+ * checked against its published SHA-256 before it is used. It uses Wi-Fi only unless the user has
+ * agreed to use mobile data.
  */
 class VerifiedDownload(private val context: Context, private val spec: DownloadSpec) {
     private val downloads = context.getSystemService(DownloadManager::class.java)
@@ -77,7 +78,8 @@ class VerifiedDownload(private val context: Context, private val spec: DownloadS
         return StatFs(directory.path).availableBytes > spec.bytes + spec.spaceMargin
     }
 
-    fun start() {
+    /** Starts the download. With [allowMobileData] false it waits for Wi-Fi; it never downloads while roaming. */
+    fun start(allowMobileData: Boolean = false) {
         if (!hasRoom()) {
             _state.value = DownloadState.Failed(DownloadState.Reason.NOT_ENOUGH_SPACE)
             return
@@ -88,8 +90,10 @@ class VerifiedDownload(private val context: Context, private val spec: DownloadS
             .setTitle(spec.title)
             .setDescription(spec.description)
             .setDestinationInExternalFilesDir(context, spec.directory, spec.fileName)
-            .setAllowedNetworkTypes(DownloadManager.Request.NETWORK_WIFI)
-            .setAllowedOverMetered(false)
+            .setAllowedNetworkTypes(
+                if (allowMobileData) DownloadManager.Request.NETWORK_WIFI or DownloadManager.Request.NETWORK_MOBILE else DownloadManager.Request.NETWORK_WIFI,
+            )
+            .setAllowedOverMetered(allowMobileData)
             .setAllowedOverRoaming(false)
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
         val id = try {
@@ -116,6 +120,12 @@ class VerifiedDownload(private val context: Context, private val spec: DownloadS
                 delay(1_000)
             }
         }
+    }
+
+    /** Starts again using mobile data, for a download that is waiting for Wi-Fi. */
+    fun restartWithMobileData() {
+        cancel()
+        start(allowMobileData = true)
     }
 
     fun cancel() {

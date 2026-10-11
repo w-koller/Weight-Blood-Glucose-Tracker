@@ -45,6 +45,8 @@ import io.github.wkoller.glucosetracker.ui.components.NoticeKind
 import io.github.wkoller.glucosetracker.ui.components.OptionRow
 import io.github.wkoller.glucosetracker.ui.components.ScreenScaffold
 import io.github.wkoller.glucosetracker.ui.components.SectionCard
+import io.github.wkoller.glucosetracker.ui.components.rememberDownloadStarter
+import io.github.wkoller.glucosetracker.ui.components.rememberMobileDataSwitch
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -62,6 +64,9 @@ fun VoiceScreen(onBack: () -> Unit) {
     var confirmDelete by remember { mutableStateOf(false) }
     val sample = stringResource(R.string.speech_sample)
     val current = VoiceChoice.decode(settings.voice)
+
+    val startDownload = rememberDownloadStarter(NaturalVoices.SIZE_TEXT) { natural.start(it) }
+    val useMobileData = rememberMobileDataSwitch(NaturalVoices.SIZE_TEXT) { natural.downloadWithMobileData() }
 
     LaunchedEffect(Unit) { phoneVoices = container.speaker.phoneVoices() }
     DisposableEffect(Unit) {
@@ -103,7 +108,7 @@ fun VoiceScreen(onBack: () -> Unit) {
                 NaturalVoiceState.NotInstalled -> {
                     Text(stringResource(R.string.voice_natural_body), style = MaterialTheme.typography.bodyLarge)
                     Text(stringResource(R.string.voice_natural_download_question), style = MaterialTheme.typography.bodyLarge)
-                    BigButton(stringResource(R.string.voice_natural_download), onClick = natural::start, icon = R.drawable.ic_download)
+                    BigButton(stringResource(R.string.voice_natural_download), onClick = startDownload, icon = R.drawable.ic_download)
                 }
                 is NaturalVoiceState.Downloading -> {
                     val fraction = if (state.totalBytes > 0) state.downloadedBytes.toFloat() / state.totalBytes else 0f
@@ -118,6 +123,7 @@ fun VoiceScreen(onBack: () -> Unit) {
                 }
                 NaturalVoiceState.WaitingForWifi -> {
                     NoticeCard(NoticeKind.INFO, stringResource(R.string.assistant_waiting_wifi_title), stringResource(R.string.assistant_waiting_wifi))
+                    BigButton(stringResource(R.string.download_use_mobile), onClick = useMobileData, icon = R.drawable.ic_download, style = ButtonStyle.SECONDARY)
                     BigButton(stringResource(R.string.assistant_cancel_download), onClick = natural::cancel, style = ButtonStyle.SECONDARY)
                 }
                 NaturalVoiceState.Installing -> Busy(stringResource(R.string.voice_natural_installing))
@@ -141,7 +147,7 @@ fun VoiceScreen(onBack: () -> Unit) {
                         NaturalVoiceState.Reason.INSTALL_FAILED -> R.string.voice_natural_failed_install
                     }
                     NoticeCard(NoticeKind.WARNING, stringResource(R.string.voice_natural_failed_title), stringResource(message))
-                    BigButton(stringResource(R.string.try_again), onClick = natural::start, icon = R.drawable.ic_download)
+                    BigButton(stringResource(R.string.try_again), onClick = startDownload, icon = R.drawable.ic_download)
                 }
             }
         }

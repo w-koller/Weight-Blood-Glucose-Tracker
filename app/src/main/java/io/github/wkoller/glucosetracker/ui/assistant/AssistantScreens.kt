@@ -46,6 +46,8 @@ import io.github.wkoller.glucosetracker.ui.components.ScreenScaffold
 import io.github.wkoller.glucosetracker.ui.components.SectionCard
 import io.github.wkoller.glucosetracker.ui.components.SpeakButton
 import io.github.wkoller.glucosetracker.ui.components.ToggleRow
+import io.github.wkoller.glucosetracker.ui.components.rememberDownloadStarter
+import io.github.wkoller.glucosetracker.ui.components.rememberMobileDataSwitch
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -173,6 +175,8 @@ fun AssistantSettingsScreen(onBack: () -> Unit) {
         models.watchDownload()
         onDispose { }
     }
+    val startDownload = rememberDownloadStarter(ModelManager.SIZE_TEXT) { models.startDownload(it) }
+    val useMobileData = rememberMobileDataSwitch(ModelManager.SIZE_TEXT) { models.downloadWithMobileData() }
 
     ScreenScaffold(title = stringResource(R.string.settings_assistant), onBack = onBack) {
         Text(stringResource(R.string.assistant_setup_body, ModelManager.MODEL_NAME), style = MaterialTheme.typography.bodyLarge)
@@ -180,7 +184,7 @@ fun AssistantSettingsScreen(onBack: () -> Unit) {
         when (val current = state) {
             ModelState.NotDownloaded -> {
                 Text(stringResource(R.string.assistant_download_question), style = MaterialTheme.typography.bodyLarge)
-                BigButton(stringResource(R.string.assistant_download), onClick = models::startDownload, icon = R.drawable.ic_download)
+                BigButton(stringResource(R.string.assistant_download), onClick = startDownload, icon = R.drawable.ic_download)
             }
             is ModelState.Downloading -> {
                 val fraction = if (current.totalBytes > 0) current.downloadedBytes.toFloat() / current.totalBytes else 0f
@@ -195,6 +199,7 @@ fun AssistantSettingsScreen(onBack: () -> Unit) {
             }
             ModelState.WaitingForWifi -> {
                 NoticeCard(NoticeKind.INFO, stringResource(R.string.assistant_waiting_wifi_title), stringResource(R.string.assistant_waiting_wifi))
+                BigButton(stringResource(R.string.download_use_mobile), onClick = useMobileData, icon = R.drawable.ic_download, style = ButtonStyle.SECONDARY)
                 BigButton(stringResource(R.string.assistant_cancel_download), onClick = models::cancelDownload, style = ButtonStyle.SECONDARY)
             }
             ModelState.Verifying -> {
@@ -220,7 +225,7 @@ fun AssistantSettingsScreen(onBack: () -> Unit) {
                     ModelState.Reason.CHECK_FAILED -> R.string.assistant_failed_check
                 }
                 NoticeCard(NoticeKind.WARNING, stringResource(R.string.assistant_failed_setup_title), stringResource(message))
-                BigButton(stringResource(R.string.try_again), onClick = models::startDownload, icon = R.drawable.ic_download)
+                BigButton(stringResource(R.string.try_again), onClick = startDownload, icon = R.drawable.ic_download)
             }
         }
     }

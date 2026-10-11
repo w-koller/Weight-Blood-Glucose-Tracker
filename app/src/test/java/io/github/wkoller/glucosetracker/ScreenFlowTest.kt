@@ -160,6 +160,9 @@ class ScreenFlowTest {
         waitFor("Would you like to download the assistant now?")
         shot("setup_07_assistant")
         click("Not now")
+        waitFor("Would you like to download the natural voices now?")
+        shot("setup_07b_voices")
+        click("Not now")
         waitFor("Please review your plan")
         shot("setup_08_review")
         click("Start my plan")
@@ -376,6 +379,21 @@ class ScreenFlowTest {
         // The assistant's state follows the download a moment later.
         waitForBackgroundWork { models.state.value is io.github.wkoller.glucosetracker.ai.ModelState.Downloading }
         models.cancelDownload()
+    }
+
+    @Test
+    fun `downloading on mobile data warns about charges first`() {
+        val connectivity = app.getSystemService(android.net.ConnectivityManager::class.java)
+        val capabilities = org.robolectric.shadows.ShadowNetworkCapabilities.newInstance()
+        org.robolectric.Shadows.shadowOf(capabilities).addTransportType(android.net.NetworkCapabilities.TRANSPORT_CELLULAR)
+        org.robolectric.Shadows.shadowOf(capabilities).addCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        org.robolectric.Shadows.shadowOf(connectivity).setNetworkCapabilities(connectivity.activeNetwork, capabilities)
+        assertEquals(io.github.wkoller.glucosetracker.download.Connection.MOBILE, io.github.wkoller.glucosetracker.download.NetworkStatus.current(app))
+        show { io.github.wkoller.glucosetracker.ui.settings.VoiceScreen(onBack = {}) }
+        click("Download natural voices")
+        waitFor("You are not connected to Wi-Fi")
+        waitFor("may incur charges")
+        shot("voice_02_mobile_data")
     }
 
     @Test

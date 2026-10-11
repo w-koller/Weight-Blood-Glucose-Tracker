@@ -19,10 +19,10 @@ import java.util.UUID
 
 enum class SetupMode { FIRST, EDIT, NEW }
 
-enum class SetupStep { WELCOME, ABOUT_YOU, INSULIN, SCALE, SCALE_CHECK, TIMES, MEDICINES, GOALS, TARGETS, PIN, PERMISSIONS, ASSISTANT, REVIEW }
+enum class SetupStep { WELCOME, ABOUT_YOU, INSULIN, SCALE, SCALE_CHECK, TIMES, MEDICINES, GOALS, TARGETS, PIN, PERMISSIONS, ASSISTANT, VOICES, REVIEW }
 
 /** Steps that belong to the first setup only. Changing a plan or starting a new one skips them. */
-private val FIRST_RUN_ONLY = setOf(SetupStep.WELCOME, SetupStep.ABOUT_YOU, SetupStep.PIN, SetupStep.PERMISSIONS, SetupStep.ASSISTANT)
+private val FIRST_RUN_ONLY = setOf(SetupStep.WELCOME, SetupStep.ABOUT_YOU, SetupStep.PIN, SetupStep.PERMISSIONS, SetupStep.ASSISTANT, SetupStep.VOICES)
 
 enum class PinError { INVALID, MISMATCH }
 
@@ -44,6 +44,11 @@ data class SetupUi(
     val familyName: String = "",
     /** Whether to download the assistant model after setup. Null until the user chooses. */
     val downloadModel: Boolean? = null,
+    /** True when the user agreed to download the model over mobile data. */
+    val modelOverMobile: Boolean = false,
+    /** Whether to download the natural voices after setup. Null until the user chooses. */
+    val downloadVoices: Boolean? = null,
+    val voicesOverMobile: Boolean = false,
     val changes: List<String>? = null,
     val saving: Boolean = false,
     val finished: Boolean = false,
@@ -145,8 +150,13 @@ class PlanSetupViewModel(private val container: AppContainer, handle: SavedState
 
     fun setFamilyName(name: String) = _ui.update { it.copy(familyName = name) }
 
-    fun chooseAssistant(download: Boolean) {
-        _ui.update { it.copy(downloadModel = download) }
+    fun chooseAssistant(download: Boolean, overMobile: Boolean = false) {
+        _ui.update { it.copy(downloadModel = download, modelOverMobile = download && overMobile) }
+        next()
+    }
+
+    fun chooseVoices(download: Boolean, overMobile: Boolean = false) {
+        _ui.update { it.copy(downloadVoices = download, voicesOverMobile = download && overMobile) }
         next()
     }
 
@@ -262,7 +272,8 @@ class PlanSetupViewModel(private val container: AppContainer, handle: SavedState
                 withName.copy(setupDone = true, assistantEnabled = withName.assistantEnabled || downloadModel)
             }
             container.onPlanChanged()
-            if (downloadModel) container.models.startDownload()
+            if (downloadModel) container.models.startDownload(state.modelOverMobile)
+            if (state.mode == SetupMode.FIRST && state.downloadVoices == true) container.naturalVoices.start(state.voicesOverMobile)
             _ui.update { it.copy(saving = false, finished = true) }
         }
     }

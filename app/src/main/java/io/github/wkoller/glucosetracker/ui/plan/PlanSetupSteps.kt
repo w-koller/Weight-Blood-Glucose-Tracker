@@ -50,6 +50,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.wkoller.glucosetracker.R
 import io.github.wkoller.glucosetracker.data.prefs.Settings as AppSettings
 import io.github.wkoller.glucosetracker.data.prefs.TextSize
+import io.github.wkoller.glucosetracker.data.prefs.ThemeChoice
 import io.github.wkoller.glucosetracker.domain.format.Measures
 import io.github.wkoller.glucosetracker.domain.model.Frequency
 import io.github.wkoller.glucosetracker.domain.model.MedicineKind
@@ -140,6 +141,22 @@ fun ColumnScope.WelcomeStep() {
             onSelect = { scope.launch { container.settingsStore.update { it.copy(textSize = size) } } },
         )
     }
+    Body(stringResource(R.string.setup_welcome_theme))
+    val themes = listOf(
+        stringResource(R.string.theme_system) to { s: AppSettings -> s.copy(theme = ThemeChoice.SYSTEM, maxContrast = false) },
+        stringResource(R.string.theme_light) to { s: AppSettings -> s.copy(theme = ThemeChoice.LIGHT, maxContrast = false) },
+        stringResource(R.string.theme_dark) to { s: AppSettings -> s.copy(theme = ThemeChoice.DARK, maxContrast = false) },
+        stringResource(R.string.display_max_contrast) to { s: AppSettings -> s.copy(maxContrast = true) },
+    )
+    val selectedTheme = when {
+        settings.maxContrast -> 3
+        settings.theme == ThemeChoice.LIGHT -> 1
+        settings.theme == ThemeChoice.DARK -> 2
+        else -> 0
+    }
+    themes.forEachIndexed { index, (title, apply) ->
+        OptionRow(title, null, selectedTheme == index, { scope.launch { container.settingsStore.update(apply) } })
+    }
     NoticeCard(NoticeKind.INFO, stringResource(R.string.about_disclaimer_title), stringResource(R.string.about_disclaimer))
 }
 
@@ -176,12 +193,37 @@ fun ColumnScope.AssistantStep(ui: SetupUi) {
     if (!hasRoom) {
         NoticeCard(NoticeKind.WARNING, stringResource(R.string.setup_assistant_space_title), stringResource(R.string.assistant_failed_space))
     }
-    ui.downloadModel?.let {
-        Text(
-            stringResource(if (it) R.string.setup_assistant_chosen_yes else R.string.setup_assistant_chosen_no),
-            style = MaterialTheme.typography.titleMedium,
-        )
+    ui.downloadModel?.let { Text(assistantChoiceText(ui), style = MaterialTheme.typography.titleMedium) }
+}
+
+@Composable
+private fun assistantChoiceText(ui: SetupUi): String = stringResource(
+    when {
+        ui.downloadModel != true -> R.string.setup_assistant_chosen_no
+        ui.modelOverMobile -> R.string.setup_assistant_chosen_mobile
+        else -> R.string.setup_assistant_chosen_yes
+    },
+)
+
+@Composable
+private fun voicesChoiceText(ui: SetupUi): String = stringResource(
+    when {
+        ui.downloadVoices != true -> R.string.setup_voices_chosen_no
+        ui.voicesOverMobile -> R.string.setup_voices_chosen_mobile
+        else -> R.string.setup_voices_chosen_yes
+    },
+)
+
+@Composable
+fun ColumnScope.VoicesStep(ui: SetupUi) {
+    val container = appContainer()
+    val hasRoom = remember { container.naturalVoices.hasRoom() }
+    Body(stringResource(R.string.voice_natural_body))
+    Body(stringResource(R.string.setup_voices_question))
+    if (!hasRoom) {
+        NoticeCard(NoticeKind.WARNING, stringResource(R.string.setup_assistant_space_title), stringResource(R.string.voice_natural_failed_space))
     }
+    ui.downloadVoices?.let { Text(voicesChoiceText(ui), style = MaterialTheme.typography.titleMedium) }
 }
 
 /** The assistant needs about 6 GB of memory to run comfortably beside other apps. */
@@ -688,11 +730,12 @@ fun ColumnScope.ReviewStep(ui: SetupUi, vm: PlanSetupViewModel) {
     }
     if (ui.mode == SetupMode.FIRST) {
         SectionCard(stringResource(R.string.setup_assistant_title)) {
-            Text(
-                stringResource(if (ui.downloadModel == true) R.string.setup_assistant_chosen_yes else R.string.setup_assistant_chosen_no),
-                style = MaterialTheme.typography.bodyLarge,
-            )
+            Text(assistantChoiceText(ui), style = MaterialTheme.typography.bodyLarge)
             BigButton(stringResource(R.string.change), onClick = { vm.goTo(SetupStep.ASSISTANT) }, icon = R.drawable.ic_edit, style = ButtonStyle.SECONDARY)
+        }
+        SectionCard(stringResource(R.string.voice_natural_title)) {
+            Text(voicesChoiceText(ui), style = MaterialTheme.typography.bodyLarge)
+            BigButton(stringResource(R.string.change), onClick = { vm.goTo(SetupStep.VOICES) }, icon = R.drawable.ic_edit, style = ButtonStyle.SECONDARY)
         }
     }
 }

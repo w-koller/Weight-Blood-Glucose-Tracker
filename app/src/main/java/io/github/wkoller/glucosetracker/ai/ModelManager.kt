@@ -89,7 +89,9 @@ class ModelManager(private val context: Context) {
 
     fun hasRoomForModel(): Boolean = download.hasRoom()
 
-    fun startDownload() = download.start()
+    fun startDownload(allowMobileData: Boolean = false) = download.start(allowMobileData)
+
+    fun downloadWithMobileData() = download.restartWithMobileData()
 
     fun watchDownload() = download.watch()
 
@@ -144,6 +146,7 @@ class ModelManager(private val context: Context) {
 
     companion object {
         const val MODEL_NAME = "Gemma 4"
+        const val SIZE_TEXT = "2.6 GB"
         const val MODEL_DIR = "models"
         const val MODEL_FILE = "gemma-4-E2B-it.litertlm"
         const val MODEL_BYTES = 2_588_147_712L

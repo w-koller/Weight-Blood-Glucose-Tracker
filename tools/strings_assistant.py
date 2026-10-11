@@ -34,7 +34,7 @@ STRINGS = {
     "assistant_setup_body": "The assistant uses %1$s, a language model that runs on this phone. It can summarise your records and answer questions about them. Your records stay on this phone.",
     "assistant_limits_title": "What the assistant does not do",
     "assistant_limits": "The assistant does not give medical advice and does not work out insulin doses. Your doses always come from the check-in, which follows your sliding scale.",
-    "assistant_download_question": "The model is 2.6 GB. Would you like to download it now? It downloads when you are connected to Wi-Fi.",
+    "assistant_download_question": "The model is 2.6 GB. Would you like to download it now?",
     "assistant_download": "Download the model",
     "assistant_download_title": "Downloading the assistant model",
     "assistant_download_description": "Gemma 4 for the Weight & Glucose Tracker assistant",
