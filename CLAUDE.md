@@ -32,6 +32,8 @@ secrets are set. The release keystore lives at `~/.android-keys/` and must never
 - `app/data`: Room (versioned plans and records) and DataStore settings.
 - `app/ui`: Compose screens. `ui/components` holds the shared senior-friendly building blocks.
 - `app/reminders`, `app/export`, `app/ai`: alarms, CSV/PDF export, model download and inference.
+- `app/download`: `VerifiedDownload`, the shared Wi-Fi-only, checksum-checked download used by the assistant model and the natural voices.
+- `app/tts`: `Speaker` (phone voices) and `NaturalVoices` (Kokoro through sherpa-onnx). The sherpa-onnx AAR is not on Maven; the `downloadSherpaOnnx` Gradle task fetches it and checks its SHA-256.
 
 ## Safety rules
 

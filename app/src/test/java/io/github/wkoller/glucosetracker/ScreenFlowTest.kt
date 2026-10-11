@@ -379,6 +379,14 @@ class ScreenFlowTest {
     }
 
     @Test
+    fun `choose a voice offers the phone voice and the natural voices`() {
+        show { io.github.wkoller.glucosetracker.ui.settings.VoiceScreen(onBack = {}) }
+        waitFor("The phone\u2019s default voice")
+        waitFor("Download natural voices")
+        shot("voice_01_choose")
+    }
+
+    @Test
     fun `home shows the next step and today`() {
         seedPlan()
         runBlocking {

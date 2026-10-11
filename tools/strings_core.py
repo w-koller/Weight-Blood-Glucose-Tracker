@@ -269,7 +269,7 @@ STRINGS = {
     "about_low_body": "The advice shown for low and high readings is general information. Please ask your doctor or diabetes educator what you should do, and follow their advice if it is different.",
     "about_version_title": "Version",
     "about_version": "Version %1$s",
-    "about_licence": "This app is free software under the GNU General Public License, version 3. The icons are Material Symbols from Google, used under the Apache License 2.0.",
+    "about_licence": "This app is free software under the GNU General Public License, version 3. The icons are Material Symbols from Google, used under the Apache License 2.0. The optional natural voices use Kokoro-82M and sherpa-onnx, both under the Apache License 2.0, and eSpeak NG data under the GNU General Public License, version 3.",
 
     # Plan
     "plan_change": "Change my plan",

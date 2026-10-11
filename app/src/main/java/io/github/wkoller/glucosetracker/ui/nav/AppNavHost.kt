@@ -36,6 +36,7 @@ import io.github.wkoller.glucosetracker.ui.settings.AboutScreen
 import io.github.wkoller.glucosetracker.ui.settings.DisplaySettingsScreen
 import io.github.wkoller.glucosetracker.ui.settings.SettingsActions
 import io.github.wkoller.glucosetracker.ui.settings.SettingsScreen
+import io.github.wkoller.glucosetracker.ui.settings.VoiceScreen
 import io.github.wkoller.glucosetracker.ui.theme.LocalUiPrefs
 
 private const val FADE_MS = 200
@@ -60,6 +61,7 @@ object Routes {
     const val ASSISTANT_SETTINGS = "settings/assistant"
     const val EXPORT = "settings/export"
     const val ABOUT = "settings/about"
+    const val VOICE = "settings/voice"
 
     fun setup(mode: SetupMode) = "setup?mode=${mode.name}"
     fun checkIn(slot: Slot?, medicinesOnly: Boolean = false) = "checkin?slot=${slot?.name ?: ""}&medsOnly=$medicinesOnly"
@@ -163,7 +165,8 @@ fun AppNavHost(startWithSetup: Boolean, openSlot: Slot?, onSlotOpened: () -> Uni
                 ),
             )
         }
-        composable(Routes.DISPLAY) { DisplaySettingsScreen(onBack = back) }
+        composable(Routes.DISPLAY) { DisplaySettingsScreen(onBack = back, onChooseVoice = { navController.navigate(Routes.VOICE) }) }
+        composable(Routes.VOICE) { VoiceScreen(onBack = back) }
         composable(Routes.PLAN) {
             PlanScreen(
                 onBack = back,

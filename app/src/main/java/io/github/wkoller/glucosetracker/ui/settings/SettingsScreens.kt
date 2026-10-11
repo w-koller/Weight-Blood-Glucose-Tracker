@@ -58,7 +58,7 @@ fun SettingsScreen(onBack: () -> Unit, actions: SettingsActions) {
 }
 
 @Composable
-fun DisplaySettingsScreen(onBack: () -> Unit) {
+fun DisplaySettingsScreen(onBack: () -> Unit, onChooseVoice: () -> Unit) {
     val container = appContainer()
     val settings by container.settingsStore.settings.collectAsStateWithLifecycle(Settings())
     val scope = rememberCoroutineScope()
@@ -122,6 +122,13 @@ fun DisplaySettingsScreen(onBack: () -> Unit) {
                 update { it.copy(speechRate = NORMAL_RATE) }
                 preview(NORMAL_RATE)
             })
+            BigButton(
+                stringResource(R.string.voice_title),
+                onClick = onChooseVoice,
+                icon = R.drawable.ic_volume_up,
+                helper = currentVoiceLabel(settings.voice),
+                style = ButtonStyle.SECONDARY,
+            )
             ToggleRow(stringResource(R.string.display_haptics), null, settings.haptics, { on -> update { it.copy(haptics = on) } })
         }
     }
