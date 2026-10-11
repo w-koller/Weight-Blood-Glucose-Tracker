@@ -369,7 +369,6 @@ private fun ScaleEditor(ui: SetupUi, vm: PlanSetupViewModel) {
             }
         }
     }
-    Body(stringResource(R.string.setup_scale_how))
 }
 
 @Composable
