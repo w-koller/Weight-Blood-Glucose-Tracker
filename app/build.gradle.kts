@@ -39,6 +39,8 @@ android {
         }
         release {
             isMinifyEnabled = false
+            // Phones with 8 GB or more are arm64; leaving out the emulator libraries keeps the download small.
+            ndk { abiFilters += listOf("arm64-v8a") }
             if (releaseKeystore != null) {
                 signingConfig = signingConfigs.getByName("release")
             }
@@ -91,6 +93,7 @@ dependencies {
     ksp(libs.room.compiler)
     implementation(libs.datastore.preferences)
     implementation(libs.work.runtime.ktx)
+    implementation(libs.litertlm.android)
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)

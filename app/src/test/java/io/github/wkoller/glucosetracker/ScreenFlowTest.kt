@@ -224,6 +224,45 @@ class ScreenFlowTest {
     }
 
     @Test
+    fun `the assistant shows a readout before the model is set up`() {
+        seedPlan()
+        runBlocking {
+            val plan = repository.currentPlan()!!
+            val today = repository.logicalToday(plan)
+            repository.addReading(GlucoseReading(0, plan.id, repository.instant(), today, Slot.BREAKFAST, 137, null, null))
+            repository.addReading(GlucoseReading(0, plan.id, repository.instant(), today, Slot.LUNCH, 36, null, null))
+        }
+        show { io.github.wkoller.glucosetracker.ui.assistant.AssistantScreen(onBack = {}, onSetUp = {}, onCheckIn = {}) }
+        waitFor("You have recorded 2 readings")
+        waitFor("The assistant is not set up")
+        shot("assistant_01_readout")
+    }
+
+    @Test
+    fun `assistant settings offer the model download`() {
+        seedPlan()
+        show { io.github.wkoller.glucosetracker.ui.assistant.AssistantSettingsScreen(onBack = {}) }
+        waitFor("Download the model")
+        shot("assistant_02_settings")
+    }
+
+    @Test
+    fun `dose questions are answered by the app, not the model`() {
+        seedPlan()
+        val service = app.container.assistant
+        val replies = runBlocking {
+            val context = service.context()!!
+            listOf("How many units of NovoRapid should I take?", "I have chest pain").map { question ->
+                val collected = mutableListOf<io.github.wkoller.glucosetracker.ai.AssistantReply>()
+                service.ask(context, question, emptyList()).collect { collected += it }
+                collected
+            }
+        }
+        assertEquals(listOf(io.github.wkoller.glucosetracker.ai.AssistantReply.DoseQuestion), replies[0])
+        assertEquals(listOf(io.github.wkoller.glucosetracker.ai.AssistantReply.Urgent), replies[1])
+    }
+
+    @Test
     fun `home shows the next step and today`() {
         seedPlan()
         runBlocking {

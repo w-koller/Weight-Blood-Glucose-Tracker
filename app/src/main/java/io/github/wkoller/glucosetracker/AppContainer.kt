@@ -1,6 +1,8 @@
 package io.github.wkoller.glucosetracker
 
 import android.content.Context
+import io.github.wkoller.glucosetracker.ai.AssistantService
+import io.github.wkoller.glucosetracker.ai.ModelManager
 import io.github.wkoller.glucosetracker.data.TrackerRepository
 import io.github.wkoller.glucosetracker.data.db.AppDatabase
 import io.github.wkoller.glucosetracker.data.prefs.SettingsStore
@@ -17,6 +19,8 @@ class AppContainer(context: Context) {
     val settingsStore = SettingsStore(appContext)
     val speaker = Speaker(appContext)
     val reminders = ReminderScheduler(appContext, repository, settingsStore, clock)
+    val models by lazy { ModelManager(appContext) }
+    val assistant by lazy { AssistantService(repository, models) }
 
     /** Called after a plan is saved, so anything that depends on the plan can catch up. */
     suspend fun onPlanChanged() = reminders.rescheduleAll()
