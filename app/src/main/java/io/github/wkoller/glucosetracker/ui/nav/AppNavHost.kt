@@ -1,5 +1,10 @@
 package io.github.wkoller.glucosetracker.ui.nav
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavHostController
@@ -31,6 +36,9 @@ import io.github.wkoller.glucosetracker.ui.settings.AboutScreen
 import io.github.wkoller.glucosetracker.ui.settings.DisplaySettingsScreen
 import io.github.wkoller.glucosetracker.ui.settings.SettingsActions
 import io.github.wkoller.glucosetracker.ui.settings.SettingsScreen
+import io.github.wkoller.glucosetracker.ui.theme.LocalUiPrefs
+
+private const val FADE_MS = 200
 
 object Routes {
     const val HOME = "home"
@@ -73,7 +81,16 @@ fun AppNavHost(startWithSetup: Boolean, openSlot: Slot?, onSlotOpened: () -> Uni
     }
     val back: () -> Unit = { if (!navController.popBackStack()) goHome() }
 
-    NavHost(navController, startDestination = if (startWithSetup) Routes.setup(SetupMode.FIRST) else Routes.HOME) {
+    // "Reduce movement" in Display and accessibility turns off the fade between screens.
+    val reduceMotion = LocalUiPrefs.current.reduceMotion
+    NavHost(
+        navController,
+        startDestination = if (startWithSetup) Routes.setup(SetupMode.FIRST) else Routes.HOME,
+        enterTransition = { if (reduceMotion) EnterTransition.None else fadeIn(tween(FADE_MS)) },
+        exitTransition = { if (reduceMotion) ExitTransition.None else fadeOut(tween(FADE_MS)) },
+        popEnterTransition = { if (reduceMotion) EnterTransition.None else fadeIn(tween(FADE_MS)) },
+        popExitTransition = { if (reduceMotion) ExitTransition.None else fadeOut(tween(FADE_MS)) },
+    ) {
         composable(Routes.HOME) {
             HomeScreen(
                 HomeActions(
