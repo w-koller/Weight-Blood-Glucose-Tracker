@@ -5,6 +5,7 @@ import android.app.AlarmManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -391,7 +392,8 @@ fun ColumnScope.PermissionsStep() {
     var notificationsAllowed by remember { mutableStateOf(false) }
     var alarmsAllowed by remember { mutableStateOf(false) }
     LifecycleResumeEffect(Unit) {
-        notificationsAllowed = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        notificationsAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
         alarmsAllowed = context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
         onPauseOrDispose { }
     }
@@ -403,7 +405,7 @@ fun ColumnScope.PermissionsStep() {
     } else {
         BigButton(
             stringResource(R.string.setup_allow_notifications),
-            onClick = { launcher.launch(Manifest.permission.POST_NOTIFICATIONS) },
+            onClick = { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) launcher.launch(Manifest.permission.POST_NOTIFICATIONS) },
             icon = R.drawable.ic_notifications,
         )
     }

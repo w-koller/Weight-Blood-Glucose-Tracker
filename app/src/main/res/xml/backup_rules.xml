@@ -2,5 +2,4 @@
 <full-backup-content>
     <include domain="database" path="." />
     <include domain="file" path="datastore/" />
-    <exclude domain="file" path="models/" />
 </full-backup-content>

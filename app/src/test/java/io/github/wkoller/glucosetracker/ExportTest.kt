@@ -70,7 +70,7 @@ class ExportTest {
     @Test
     fun `the spreadsheet has one row per day in date order`() {
         val csv = CsvExporter(context).build(plan, days())
-        val lines = csv.removePrefix("﻿").trim().lines()
+        val lines = csv.removePrefix("\uFEFF").trim().lines()
         assertEquals(3, lines.size)
         val header = lines[0].split(",")
         assertEquals("Date", header[0])

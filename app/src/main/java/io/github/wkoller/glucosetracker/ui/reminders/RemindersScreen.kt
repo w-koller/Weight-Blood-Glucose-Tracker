@@ -3,6 +3,7 @@ package io.github.wkoller.glucosetracker.ui.reminders
 import android.Manifest
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -65,7 +66,16 @@ fun RemindersScreen(onBack: () -> Unit) {
         )
         if (!notificationsAllowed) {
             NoticeCard(NoticeKind.WARNING, stringResource(R.string.reminders_no_notifications_title), stringResource(R.string.reminders_no_notifications)) {
-                BigButton(stringResource(R.string.setup_allow_notifications), onClick = { launcher.launch(Manifest.permission.POST_NOTIFICATIONS) })
+                BigButton(
+                    stringResource(R.string.setup_allow_notifications),
+                    onClick = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
+                        }
+                    },
+                )
             }
         }
         if (!exactAllowed) {

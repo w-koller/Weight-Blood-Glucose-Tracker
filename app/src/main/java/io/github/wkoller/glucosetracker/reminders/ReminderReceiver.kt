@@ -46,6 +46,7 @@ class ReminderReceiver : BroadcastReceiver() {
 /** Sets the reminders again after a restart, an app update or a change of time or time zone. */
 class RescheduleReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action !in ACTIONS) return
         val container = (context.applicationContext as TrackerApp).container
         val pending = goAsync()
         CoroutineScope(Dispatchers.Default).launch {
@@ -55,5 +56,15 @@ class RescheduleReceiver : BroadcastReceiver() {
                 pending.finish()
             }
         }
+    }
+
+    private companion object {
+        val ACTIONS = setOf(
+            Intent.ACTION_BOOT_COMPLETED,
+            Intent.ACTION_MY_PACKAGE_REPLACED,
+            Intent.ACTION_TIME_CHANGED,
+            Intent.ACTION_TIMEZONE_CHANGED,
+            android.app.AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED,
+        )
     }
 }

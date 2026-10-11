@@ -5,6 +5,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -98,10 +99,10 @@ fun MedicinesScreen(onBack: () -> Unit, onRecord: (Slot) -> Unit) {
             }
         }
         SectionCard(stringResource(R.string.medicines_week_title)) {
-            ui.week.forEach { FactRow(it.medicineName, context.resources.getQuantityString(R.plurals.medicines_adherence, it.scheduled, it.given, it.scheduled)) }
+            ui.week.forEach { FactRow(it.medicineName, pluralStringResource(R.plurals.medicines_adherence, it.scheduled, it.given, it.scheduled)) }
         }
         SectionCard(stringResource(R.string.medicines_month_title)) {
-            ui.month.forEach { FactRow(it.medicineName, context.resources.getQuantityString(R.plurals.medicines_adherence, it.scheduled, it.given, it.scheduled)) }
+            ui.month.forEach { FactRow(it.medicineName, pluralStringResource(R.plurals.medicines_adherence, it.scheduled, it.given, it.scheduled)) }
         }
     }
 }

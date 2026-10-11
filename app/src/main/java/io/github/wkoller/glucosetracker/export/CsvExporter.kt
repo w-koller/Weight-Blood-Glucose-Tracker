@@ -72,7 +72,7 @@ class CsvExporter(private val context: Context) {
             }
         }
         // The byte-order mark lets Excel recognise the file as UTF-8.
-        return "﻿" + (listOf(header) + rows).joinToString("\r\n") { row -> row.joinToString(",") { escape(it) } } + "\r\n"
+        return BYTE_ORDER_MARK + (listOf(header) + rows).joinToString("\r\n") { row -> row.joinToString(",") { escape(it) } } + "\r\n"
     }
 
     private fun doseCell(doses: List<DoseRecord>): String = doses.joinToString(" / ") { dose ->
@@ -87,6 +87,10 @@ class CsvExporter(private val context: Context) {
         grams > 0 -> "+" + Measures.formatKgChange(grams)
         grams < 0 -> "-" + Measures.formatKgChange(grams)
         else -> "0"
+    }
+
+    private companion object {
+        const val BYTE_ORDER_MARK = "\uFEFF"
     }
 
     private fun escape(value: String): String =

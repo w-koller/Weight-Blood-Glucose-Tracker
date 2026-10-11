@@ -38,8 +38,8 @@ fun DateField(
     label: String,
     date: LocalDate?,
     onDateChange: (LocalDate?) -> Unit,
-    allowClear: Boolean = false,
     modifier: Modifier = Modifier,
+    allowClear: Boolean = false,
 ) {
     var open by remember { mutableStateOf(false) }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
