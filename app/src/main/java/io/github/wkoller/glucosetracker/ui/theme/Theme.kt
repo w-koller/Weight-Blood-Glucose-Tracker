@@ -101,12 +101,13 @@ private val DarkColors = darkColorScheme(
 private val MaxContrastColors = darkColorScheme(
     primary = Color(0xFFFFE600),
     onPrimary = Color.Black,
-    primaryContainer = Color(0xFFFFE600),
-    onPrimaryContainer = Color.Black,
+    // Containers stay dark so yellow buttons inside them remain visible; borders carry the colour.
+    primaryContainer = Color(0xFF1A1A1A),
+    onPrimaryContainer = Color.White,
     secondary = Color(0xFF7DF9FF),
     onSecondary = Color.Black,
-    secondaryContainer = Color(0xFF7DF9FF),
-    onSecondaryContainer = Color.Black,
+    secondaryContainer = Color(0xFF1A1A1A),
+    onSecondaryContainer = Color.White,
     background = Color.Black,
     onBackground = Color.White,
     surface = Color.Black,

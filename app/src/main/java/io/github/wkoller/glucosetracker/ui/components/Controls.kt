@@ -14,7 +14,6 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -23,7 +22,6 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +31,12 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import io.github.wkoller.glucosetracker.R
 import io.github.wkoller.glucosetracker.tts.LocalSpeaker
 import io.github.wkoller.glucosetracker.ui.theme.LocalUiPrefs
@@ -144,7 +148,7 @@ fun LabeledField(
     }
 }
 
-/** A confirmation with two clearly worded choices. */
+/** A confirmation with two clearly worded choices, shown as full-size buttons rather than small links. */
 @Composable
 fun ConfirmDialog(
     title: String,
@@ -154,25 +158,24 @@ fun ConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title, style = MaterialTheme.typography.headlineSmall) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+        ) {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()).padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Text(title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
                 messages.forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
+                BigButton(confirmText, onClick = onConfirm)
+                BigButton(dismissText, onClick = onDismiss, style = ButtonStyle.SECONDARY)
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm, modifier = Modifier.heightIn(min = 56.dp)) {
-                Text(confirmText, style = MaterialTheme.typography.labelLarge)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 56.dp)) {
-                Text(dismissText, style = MaterialTheme.typography.labelLarge)
-            }
-        },
-    )
+        }
+    }
 }
 
 /** Reads [text] aloud. Shown wherever an important result appears. */

@@ -25,6 +25,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.wkoller.glucosetracker.R
@@ -104,7 +105,7 @@ fun NumberPad(
                         enabled = enabled,
                         shape = RoundedCornerShape(14.dp),
                         border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
-                        modifier = Modifier.weight(1f).heightIn(min = 68.dp),
+                        modifier = Modifier.weight(1f).heightIn(min = 68.dp).testTag("key_$key"),
                     ) {
                         when (key) {
                             "back" -> Icon(
