@@ -7,6 +7,7 @@ import android.os.StatFs
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
+import io.github.wkoller.glucosetracker.CrashReporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -88,7 +89,14 @@ class ModelManager(private val context: Context) {
             .setAllowedOverMetered(false)
             .setAllowedOverRoaming(false)
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-        val id = downloads.enqueue(request)
+        val id = try {
+            downloads.enqueue(request)
+        } catch (error: RuntimeException) {
+            // For example a SecurityException if the download manager refuses the request. Report it instead of crashing.
+            CrashReporter.record(context, error)
+            _state.value = ModelState.Failed(ModelState.Reason.DOWNLOAD_FAILED)
+            return
+        }
         prefs.edit().putLong(KEY_DOWNLOAD_ID, id).putBoolean(KEY_VERIFIED, false).apply()
         _state.value = ModelState.Downloading(0, MODEL_BYTES)
         watchDownload()

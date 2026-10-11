@@ -110,7 +110,7 @@ class ExportTest {
                 File(dir, "report_page_$pages.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
             }
         }
-        PdfReportWriter(context).render(sink, plan, day1, day1.plusDays(1), days(), day1.plusDays(2))
+        PdfReportWriter(context).render(sink, plan, day1, day1.plusDays(1), days(), day1.plusDays(2), "Mary Smith")
         assertTrue(pages >= 1)
     }
 }

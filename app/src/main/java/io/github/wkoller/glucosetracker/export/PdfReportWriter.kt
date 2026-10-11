@@ -55,20 +55,21 @@ private const val CHART_HEIGHT = 170f
 /** A printable A4 report for the doctor: the plan, a summary, a glucose chart and the daily records. */
 class PdfReportWriter(private val context: Context) {
 
-    fun write(file: File, plan: Plan, from: LocalDate, to: LocalDate, days: List<DayLog>, preparedOn: LocalDate) {
+    fun write(file: File, plan: Plan, from: LocalDate, to: LocalDate, days: List<DayLog>, preparedOn: LocalDate, patientName: String? = null) {
         val document = PdfDocument()
-        render(PdfSink(document), plan, from, to, days, preparedOn)
+        render(PdfSink(document), plan, from, to, days, preparedOn, patientName)
         file.outputStream().use { document.writeTo(it) }
         document.close()
     }
 
-    fun render(sink: PageSink, plan: Plan, from: LocalDate, to: LocalDate, days: List<DayLog>, preparedOn: LocalDate) {
+    fun render(sink: PageSink, plan: Plan, from: LocalDate, to: LocalDate, days: List<DayLog>, preparedOn: LocalDate, patientName: String? = null) {
         val writer = PageWriter(sink, context.getString(R.string.report_footer))
         val readings = days.flatMap { day -> day.slots.flatMap { it.readings } }
         val doses = days.flatMap { day -> day.slots.flatMap { it.doses } }
         val measurements = days.flatMap { it.measurements }
 
         writer.text(context.getString(R.string.report_title), writer.title)
+        patientName?.let { writer.text(context.getString(R.string.report_prepared_for, it), writer.heading) }
         writer.text(context.getString(R.string.report_period, UiFormat.dayLongYear(from), UiFormat.dayLongYear(to)), writer.body)
         writer.text(context.getString(R.string.report_prepared, UiFormat.dayLongYear(preparedOn)), writer.body)
         writer.gap()

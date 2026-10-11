@@ -32,6 +32,7 @@ data class HomeUi(
     val nextStep: NextStep? = null,
     val slots: List<SlotProgress> = emptyList(),
     val weight: Progress? = null,
+    val firstName: String = "",
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -46,10 +47,12 @@ class HomeViewModel(container: AppContainer) : ViewModel() {
         }
     }.distinctUntilChanged()
 
-    val ui: StateFlow<HomeUi> = combine(repository.activePlan, minutes) { plan, now -> plan to now }
-        .flatMapLatest { (plan, now) ->
+    private val firstName = container.settingsStore.settings.map { it.firstName }.distinctUntilChanged()
+
+    val ui: StateFlow<HomeUi> = combine(repository.activePlan, minutes, firstName) { plan, now, name -> Triple(plan, now, name) }
+        .flatMapLatest { (plan, now, name) ->
             if (plan == null) {
-                flowOf(HomeUi(loading = false, now = now))
+                flowOf(HomeUi(loading = false, now = now, firstName = name))
             } else {
                 val today = SlotResolver.logicalDate(plan, now)
                 combine(repository.day(today), repository.measurements) { day, measurements ->
@@ -61,6 +64,7 @@ class HomeViewModel(container: AppContainer) : ViewModel() {
                         nextStep = NextStepEngine.next(plan, now, day),
                         slots = NextStepEngine.progress(plan, now, day),
                         weight = ProgressCalculator.weight(plan.goals, measurements).takeIf { it.current != null },
+                        firstName = name,
                     )
                 }
             }

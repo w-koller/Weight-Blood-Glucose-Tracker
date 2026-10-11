@@ -45,7 +45,7 @@ data class PlanDraft(
     val correctionInsulin: String = "",
     val prescriber: String = "",
     val orderDate: LocalDate? = null,
-    val bands: List<BandDraft> = listOf(BandDraft("", "")),
+    val bands: List<BandDraft> = emptyList(),
     val scaleChecked: Boolean = false,
     val slots: List<SlotDraft> = DEFAULT_SLOTS,
     val medicines: List<MedicineDraft> = emptyList(),
@@ -81,6 +81,11 @@ data class PlanDraft(
         fun commonBands(): List<BandDraft> = SlidingScale.COMMON.bands.map {
             BandDraft(it.upperTenths?.let(Measures::formatTenthsShort) ?: "", it.units.toString())
         }
+
+        /** Five ranges and the open top row, which is how most orders are laid out. */
+        fun emptyBands(): List<BandDraft> = List(EMPTY_TABLE_ROWS) { BandDraft("", "") }
+
+        private const val EMPTY_TABLE_ROWS = 6
 
         fun from(plan: Plan): PlanDraft = PlanDraft(
             cycleId = plan.cycleId,
@@ -119,6 +124,7 @@ data class PlanDraft(
 
     /** The scale as typed, or null if a number cannot be read. */
     fun parsedScale(): SlidingScale? {
+        if (bands.isEmpty()) return null
         val bands = bands.mapIndexed { index, band ->
             val units = band.units.trim().toIntOrNull() ?: return null
             val upper = if (index == bands.lastIndex) {
@@ -185,6 +191,7 @@ private fun <T> optionalValue(input: NumberInput<T>): T? = (input as? NumberInpu
 /** Problems the user must fix before leaving a step. Each maps to a sentence in strings.xml. */
 sealed interface DraftError {
     data object InsulinNameMissing : DraftError
+    data object ScaleEmpty : DraftError
     data class BandUpperInvalid(val row: Int) : DraftError
     data class BandUnitsInvalid(val row: Int) : DraftError
     data class BandNotAscending(val row: Int) : DraftError
@@ -213,6 +220,7 @@ object DraftValidator {
         if (draft.correctionInsulin.isBlank()) listOf(DraftError.InsulinNameMissing) else emptyList()
 
     fun scale(draft: PlanDraft): List<DraftError> {
+        if (draft.bands.isEmpty()) return listOf(DraftError.ScaleEmpty)
         val errors = mutableListOf<DraftError>()
         draft.bands.forEachIndexed { index, band ->
             val row = index + 1

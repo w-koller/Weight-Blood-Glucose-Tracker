@@ -7,11 +7,13 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.wkoller.glucosetracker.R
+import io.github.wkoller.glucosetracker.ui.appContainer
 import io.github.wkoller.glucosetracker.ui.appViewModel
 import io.github.wkoller.glucosetracker.ui.components.BigButton
 import io.github.wkoller.glucosetracker.ui.components.ButtonStyle
@@ -40,6 +42,8 @@ fun PlanSetupScreen(onClose: () -> Unit, onFinished: () -> Unit) {
 
     val titleRes = when (ui.step) {
         SetupStep.WELCOME -> R.string.setup_welcome_title
+        SetupStep.ABOUT_YOU -> R.string.setup_about_title
+        SetupStep.ASSISTANT -> R.string.setup_assistant_title
         SetupStep.INSULIN -> R.string.setup_insulin_title
         SetupStep.SCALE -> R.string.setup_scale_title
         SetupStep.SCALE_CHECK -> R.string.setup_scale_check_title
@@ -62,6 +66,19 @@ fun PlanSetupScreen(onClose: () -> Unit, onFinished: () -> Unit) {
                 SetupStep.PIN -> {
                     BigButton(stringResource(R.string.setup_pin_set), onClick = vm::choosePin)
                     BigButton(stringResource(R.string.setup_pin_skip), onClick = vm::skipPin, style = ButtonStyle.SECONDARY)
+                }
+                SetupStep.ASSISTANT -> {
+                    // Without room for the model, downloading would only fail, so "Not now" is the only choice.
+                    val container = appContainer()
+                    val hasRoom = remember { container.models.hasRoomForModel() }
+                    if (hasRoom) {
+                        BigButton(stringResource(R.string.setup_assistant_yes), onClick = { vm.chooseAssistant(true) }, icon = R.drawable.ic_download)
+                    }
+                    BigButton(
+                        stringResource(R.string.setup_assistant_no),
+                        onClick = { vm.chooseAssistant(false) },
+                        style = if (hasRoom) ButtonStyle.SECONDARY else ButtonStyle.PRIMARY,
+                    )
                 }
                 SetupStep.MEDICINES -> {
                     BigButton(stringResource(R.string.setup_medicine_add), onClick = { vm.startMedicine(null) }, style = ButtonStyle.SECONDARY)
@@ -87,6 +104,8 @@ fun PlanSetupScreen(onClose: () -> Unit, onFinished: () -> Unit) {
     ) {
         when (ui.step) {
             SetupStep.WELCOME -> WelcomeStep()
+            SetupStep.ABOUT_YOU -> AboutYouStep(ui, vm)
+            SetupStep.ASSISTANT -> AssistantStep(ui)
             SetupStep.INSULIN -> InsulinStep(ui, vm)
             SetupStep.SCALE -> ScaleStep(ui, vm)
             SetupStep.SCALE_CHECK -> ScaleCheckStep(ui, vm)

@@ -3,7 +3,15 @@ package io.github.wkoller.glucosetracker.ui.settings
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import android.content.Intent
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
+import io.github.wkoller.glucosetracker.CrashReporter
+import io.github.wkoller.glucosetracker.ui.UiFormat
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -21,7 +29,12 @@ import io.github.wkoller.glucosetracker.ui.components.OptionRow
 import io.github.wkoller.glucosetracker.ui.components.ScreenScaffold
 import io.github.wkoller.glucosetracker.ui.components.SectionCard
 import io.github.wkoller.glucosetracker.ui.components.ToggleRow
+import io.github.wkoller.glucosetracker.ui.components.labelRes
+import io.github.wkoller.glucosetracker.tts.LocalSpeaker
 import kotlinx.coroutines.launch
+
+private const val SLOW_RATE = 0.75f
+private const val NORMAL_RATE = 0.95f
 
 data class SettingsActions(
     val display: () -> Unit,
@@ -49,6 +62,8 @@ fun DisplaySettingsScreen(onBack: () -> Unit) {
     val container = appContainer()
     val settings by container.settingsStore.settings.collectAsStateWithLifecycle(Settings())
     val scope = rememberCoroutineScope()
+    val speaker = LocalSpeaker.current
+    val sample = stringResource(R.string.speech_sample)
     fun update(transform: (Settings) -> Settings) = scope.launch { container.settingsStore.update(transform) }
 
     ScreenScaffold(title = stringResource(R.string.settings_display), onBack = onBack) {
@@ -56,13 +71,7 @@ fun DisplaySettingsScreen(onBack: () -> Unit) {
         SectionCard(stringResource(R.string.display_text_size)) {
             TextSize.entries.forEach { size ->
                 OptionRow(
-                    title = stringResource(
-                        when (size) {
-                            TextSize.LARGE -> R.string.text_size_large
-                            TextSize.EXTRA_LARGE -> R.string.text_size_extra_large
-                            TextSize.LARGEST -> R.string.text_size_largest
-                        },
-                    ),
+                    title = stringResource(size.labelRes()),
                     description = null,
                     selected = settings.textSize == size,
                     onSelect = { update { it.copy(textSize = size) } },
@@ -95,9 +104,25 @@ fun DisplaySettingsScreen(onBack: () -> Unit) {
             ToggleRow(stringResource(R.string.display_reduce_motion), stringResource(R.string.display_reduce_motion_helper), settings.reduceMotion, { on -> update { it.copy(reduceMotion = on) } })
         }
         SectionCard(stringResource(R.string.display_sound_touch)) {
-            ToggleRow(stringResource(R.string.display_read_aloud), stringResource(R.string.display_read_aloud_helper), settings.readAloud, { on -> update { it.copy(readAloud = on) } })
-            OptionRow(stringResource(R.string.speech_slow), null, settings.speechRate < 0.85f, { update { it.copy(speechRate = 0.75f) } })
-            OptionRow(stringResource(R.string.speech_normal), null, settings.speechRate >= 0.85f, { update { it.copy(speechRate = 0.95f) } })
+            // Choosing a speed, or turning reading aloud on, plays a short sample so the user can hear the result.
+            fun preview(rate: Float) = speaker?.speak(sample, rate)
+            ToggleRow(
+                stringResource(R.string.display_read_aloud),
+                stringResource(R.string.display_read_aloud_helper),
+                settings.readAloud,
+                { on ->
+                    update { it.copy(readAloud = on) }
+                    if (on) preview(settings.speechRate)
+                },
+            )
+            OptionRow(stringResource(R.string.speech_slow), stringResource(R.string.speech_sample_helper), settings.speechRate < 0.85f, {
+                update { it.copy(speechRate = SLOW_RATE) }
+                preview(SLOW_RATE)
+            })
+            OptionRow(stringResource(R.string.speech_normal), stringResource(R.string.speech_sample_helper), settings.speechRate >= 0.85f, {
+                update { it.copy(speechRate = NORMAL_RATE) }
+                preview(NORMAL_RATE)
+            })
             ToggleRow(stringResource(R.string.display_haptics), stringResource(R.string.display_haptics_helper), settings.haptics, { on -> update { it.copy(haptics = on) } })
         }
     }
@@ -105,7 +130,27 @@ fun DisplaySettingsScreen(onBack: () -> Unit) {
 
 @Composable
 fun AboutScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    var report by remember { mutableStateOf(CrashReporter.latest(context)) }
     ScreenScaffold(title = stringResource(R.string.settings_about), onBack = onBack) {
+        report?.let { file ->
+            val shareTitle = stringResource(R.string.about_problem_share_title)
+            NoticeCard(
+                NoticeKind.WARNING,
+                stringResource(R.string.about_problem_title),
+                stringResource(R.string.about_problem_body, UiFormat.dayLongYear(java.time.Instant.ofEpochMilli(file.lastModified()).atZone(java.time.ZoneId.systemDefault()).toLocalDate())),
+            ) {
+                BigButton(stringResource(R.string.about_problem_share), onClick = {
+                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+                    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    context.startActivity(Intent.createChooser(send, shareTitle))
+                }, icon = R.drawable.ic_share)
+                BigButton(stringResource(R.string.about_problem_delete), onClick = {
+                    CrashReporter.delete(context)
+                    report = null
+                }, icon = R.drawable.ic_delete, style = ButtonStyle.SECONDARY)
+            }
+        }
         NoticeCard(NoticeKind.INFO, stringResource(R.string.about_disclaimer_title), stringResource(R.string.about_disclaimer))
         SectionCard(stringResource(R.string.about_data_title)) {
             Text(stringResource(R.string.about_data_body), style = MaterialTheme.typography.bodyLarge)

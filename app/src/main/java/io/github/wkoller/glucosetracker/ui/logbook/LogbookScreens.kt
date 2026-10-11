@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,8 +60,29 @@ import java.time.LocalDate
 fun LogbookScreen(onBack: () -> Unit, onDay: (LocalDate) -> Unit) {
     val vm = appViewModel { container, _ -> LogbookViewModel(container) }
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val calendar by vm.calendar.collectAsStateWithLifecycle()
+    var showList by rememberSaveable { mutableStateOf(false) }
     val targets = ui.plan?.targets ?: GlucoseTargets.DEFAULT
     ScreenScaffold(title = stringResource(R.string.logbook_title), onBack = onBack) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            OptionRow(stringResource(R.string.logbook_view_calendar), null, !showList, { showList = false }, modifier = Modifier.weight(1f))
+            OptionRow(stringResource(R.string.logbook_view_list), null, showList, { showList = true }, modifier = Modifier.weight(1f))
+        }
+        if (!showList) {
+            Text(stringResource(R.string.logbook_calendar_body), style = MaterialTheme.typography.bodyLarge)
+            MonthCalendar(
+                month = calendar.month,
+                statuses = calendar.statuses,
+                today = calendar.today,
+                canGoLater = calendar.canGoLater,
+                onDay = onDay,
+                onEarlier = vm::earlierMonth,
+                onLater = vm::laterMonth,
+            )
+            Text(calendarSummary(calendar.month, calendar.statuses), style = MaterialTheme.typography.titleMedium)
+            SectionCard(stringResource(R.string.calendar_legend_title)) { CalendarLegend() }
+            return@ScreenScaffold
+        }
         Text(stringResource(R.string.logbook_body), style = MaterialTheme.typography.bodyLarge)
         if (!ui.loading && ui.days.isEmpty()) {
             Text(stringResource(R.string.logbook_empty), style = MaterialTheme.typography.titleMedium)

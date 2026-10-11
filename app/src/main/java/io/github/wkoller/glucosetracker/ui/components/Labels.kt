@@ -2,6 +2,7 @@ package io.github.wkoller.glucosetracker.ui.components
 
 import androidx.annotation.StringRes
 import io.github.wkoller.glucosetracker.R
+import io.github.wkoller.glucosetracker.data.prefs.TextSize
 import io.github.wkoller.glucosetracker.domain.dosing.GlucoseStatus
 import io.github.wkoller.glucosetracker.domain.model.Frequency
 import io.github.wkoller.glucosetracker.domain.model.MedicineKind
@@ -58,6 +59,15 @@ fun Frequency.labelRes(): Int = when (this) {
     Frequency.DAILY -> R.string.frequency_daily
     Frequency.WEEKLY -> R.string.frequency_weekly
     Frequency.OFF -> R.string.frequency_off
+}
+
+@StringRes
+fun TextSize.labelRes(): Int = when (this) {
+    TextSize.SMALL -> R.string.text_size_small
+    TextSize.MEDIUM -> R.string.text_size_medium
+    TextSize.LARGE -> R.string.text_size_large
+    TextSize.EXTRA_LARGE -> R.string.text_size_extra_large
+    TextSize.LARGEST -> R.string.text_size_largest
 }
 
 @StringRes

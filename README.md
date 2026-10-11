@@ -8,11 +8,12 @@ Weight & Glucose Tracker is an Android app that records weight, waist measuremen
 - **Your prescription as a plan.** The sliding scale, the check times, other medicines (such as a premixed insulin or tablets) and goals are entered once from the doctor's order. A personal identification number (PIN) can protect the plan. Each change is saved as a new version, and earlier records keep the version that was in place at the time.
 - **Safety prompts.** The app asks for confirmation when a dose is different from the prescription, when it falls outside the times on the order, or when a dose has already been recorded. A low reading shows what to do instead of a dose.
 - **Weight and waist.** Progress is shown against the starting weight and the goal, with the change since the last weigh-in.
-- **Logbook and progress.** Records can be viewed by day, changed or deleted, and shown as charts.
+- **Logbook and progress.** A calendar shows each day in green when everything was recorded, yellow when some of it was, and red when nothing was. Records can be viewed by day, changed or deleted, and shown as charts.
 - **Reminders.** A reminder arrives at each check time, unless that check has already been recorded.
 - **Export for the doctor.** A PDF report or a spreadsheet (CSV) can be shared by email or another app.
 - **Optional assistant.** Gemma 4, a language model that runs on the phone, can summarise records and answer questions about them. It does not give medical advice or work out doses.
-- **Display and accessibility.** Text size, maximum contrast, a dark theme, simple mode, read-aloud results and options to hide icons or extra explanations.
+- **Your name.** An optional first and family name personalises the greeting and appears on reports for the doctor.
+- **Display and accessibility.** Five text sizes from Small to Largest, maximum contrast, a dark theme, simple mode, read-aloud results with a sample of each speed, and options to hide icons or extra explanations.
 
 ## Important
 
@@ -33,7 +34,7 @@ New versions install over the old one, and your records are kept, as long as the
 
 ## The assistant
 
-The assistant is turned off until you set it up in **Settings › Assistant**. The model is 2.6 GB and downloads only over Wi-Fi. The app checks the download before it uses it. Your records stay on the phone, and the app does not send them anywhere.
+The first setup asks whether to download the assistant, and you can also set it up later in **Settings › Assistant**. The model is 2.6 GB and downloads only over Wi-Fi. The app checks the download before it uses it. The app uses the internet only for this download. Your records stay on the phone, and the app does not send them anywhere.
 
 ## Your records
 

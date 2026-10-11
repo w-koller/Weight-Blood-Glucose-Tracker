@@ -1,6 +1,20 @@
 package io.github.wkoller.glucosetracker.ui.plan
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import io.github.wkoller.glucosetracker.ui.components.LabeledField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,8 +55,14 @@ fun PlanScreen(onBack: () -> Unit, onEdit: () -> Unit, onNew: () -> Unit, onHist
     val container = appContainer()
     val plan by container.repository.activePlan.collectAsStateWithLifecycle(null)
     val settings by container.settingsStore.settings.collectAsStateWithLifecycle(Settings())
+    val scope = rememberCoroutineScope()
+    var editingName by remember { mutableStateOf(false) }
     ScreenScaffold(title = stringResource(R.string.settings_plan), onBack = onBack) {
         Text(stringResource(R.string.plan_body), style = MaterialTheme.typography.bodyLarge)
+        SectionCard(stringResource(R.string.plan_name_title), icon = R.drawable.ic_person) {
+            Text(settings.fullName ?: stringResource(R.string.plan_name_none), style = MaterialTheme.typography.titleMedium)
+            BigButton(stringResource(R.string.plan_name_change), onClick = { editingName = true }, icon = R.drawable.ic_edit, style = ButtonStyle.SECONDARY)
+        }
         BigButton(stringResource(R.string.plan_change), onClick = onEdit, icon = R.drawable.ic_edit, helper = stringResource(R.string.plan_change_helper))
         BigButton(stringResource(R.string.plan_new), onClick = onNew, icon = R.drawable.ic_add, helper = stringResource(R.string.plan_new_helper), style = ButtonStyle.SECONDARY)
         BigButton(stringResource(R.string.plan_history), onClick = onHistory, icon = R.drawable.ic_history, style = ButtonStyle.SECONDARY)
@@ -53,6 +73,41 @@ fun PlanScreen(onBack: () -> Unit, onEdit: () -> Unit, onNew: () -> Unit, onHist
             style = ButtonStyle.SECONDARY,
         )
         plan?.let { PlanSummary(it) }
+    }
+    if (editingName) {
+        NameDialog(
+            firstName = settings.firstName,
+            familyName = settings.familyName,
+            onSave = { first, family ->
+                editingName = false
+                scope.launch { container.settingsStore.update { it.copy(firstName = first, familyName = family) } }
+            },
+            onDismiss = { editingName = false },
+        )
+    }
+}
+
+/** Changing the name is not a prescription change, so it needs no PIN and creates no plan version. */
+@Composable
+private fun NameDialog(firstName: String, familyName: String, onSave: (String, String) -> Unit, onDismiss: () -> Unit) {
+    var first by remember { mutableStateOf(firstName) }
+    var family by remember { mutableStateOf(familyName) }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+        ) {
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text(stringResource(R.string.plan_name_title), style = MaterialTheme.typography.headlineSmall)
+                Text(stringResource(R.string.setup_about_body), style = MaterialTheme.typography.bodyLarge)
+                LabeledField(stringResource(R.string.setup_first_name), first, { first = it }, hint = stringResource(R.string.setup_first_name_hint))
+                LabeledField(stringResource(R.string.setup_family_name), family, { family = it })
+                BigButton(stringResource(R.string.save), onClick = { onSave(first.trim(), family.trim()) })
+                BigButton(stringResource(R.string.cancel), onClick = onDismiss, style = ButtonStyle.SECONDARY)
+            }
+        }
     }
 }
 

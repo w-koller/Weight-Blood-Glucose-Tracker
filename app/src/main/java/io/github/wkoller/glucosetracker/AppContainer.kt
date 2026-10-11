@@ -20,7 +20,7 @@ class AppContainer(context: Context) {
     val speaker = Speaker(appContext)
     val reminders = ReminderScheduler(appContext, repository, settingsStore, clock)
     val models by lazy { ModelManager(appContext) }
-    val assistant by lazy { AssistantService(repository, models) }
+    val assistant by lazy { AssistantService(repository, models, settingsStore) }
 
     /** Called after a plan is saved, so anything that depends on the plan can catch up. */
     suspend fun onPlanChanged() = reminders.rescheduleAll()

@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -33,6 +34,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.wkoller.glucosetracker.R
 import io.github.wkoller.glucosetracker.domain.format.Measures
 import io.github.wkoller.glucosetracker.domain.model.Slot
+import io.github.wkoller.glucosetracker.domain.schedule.Greeting
+import io.github.wkoller.glucosetracker.domain.schedule.Greetings
 import io.github.wkoller.glucosetracker.domain.schedule.NextStep
 import io.github.wkoller.glucosetracker.domain.schedule.SlotState
 import io.github.wkoller.glucosetracker.ui.UiFormat
@@ -47,6 +50,7 @@ import io.github.wkoller.glucosetracker.ui.theme.LocalUiPrefs
 
 data class HomeActions(
     val checkIn: (Slot?, Boolean) -> Unit,
+    val calendar: () -> Unit,
     val measure: (String) -> Unit,
     val medicines: () -> Unit,
     val logbook: () -> Unit,
@@ -70,13 +74,8 @@ fun HomeScreen(actions: HomeActions) {
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            val greeting = when (ui.now.hour) {
-                in 0..11 -> R.string.home_good_morning
-                in 12..16 -> R.string.home_good_afternoon
-                else -> R.string.home_good_evening
-            }
-            Text(stringResource(greeting), style = MaterialTheme.typography.headlineLarge, modifier = Modifier.semantics { heading() })
-            Text(UiFormat.dayLong(ui.now.toLocalDate()), style = MaterialTheme.typography.titleLarge)
+            Text(greetingText(Greetings.at(ui.now.toLocalTime()), ui.firstName), style = MaterialTheme.typography.headlineLarge, modifier = Modifier.semantics { heading() })
+            DateChip(UiFormat.dayLong(ui.now.toLocalDate()), actions.calendar)
 
             ui.nextStep?.let { NextStepCard(it, actions) }
 
@@ -159,6 +158,56 @@ fun HomeScreen(actions: HomeActions) {
                 style = ButtonStyle.SECONDARY,
             )
             Spacer(Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun greetingText(greeting: Greeting, firstName: String): String {
+    val name = firstName.trim()
+    return if (name.isEmpty()) {
+        stringResource(
+            when (greeting) {
+                Greeting.MORNING -> R.string.home_good_morning
+                Greeting.AFTERNOON -> R.string.home_good_afternoon
+                Greeting.EVENING -> R.string.home_good_evening
+                Greeting.HELLO -> R.string.home_hello
+            },
+        )
+    } else {
+        stringResource(
+            when (greeting) {
+                Greeting.MORNING -> R.string.home_good_morning_name
+                Greeting.AFTERNOON -> R.string.home_good_afternoon_name
+                Greeting.EVENING -> R.string.home_good_evening_name
+                Greeting.HELLO -> R.string.home_hello_name
+            },
+            name,
+        )
+    }
+}
+
+/** Today's date, which opens the logbook calendar. It looks like a button so it is clear it can be tapped. */
+@Composable
+private fun DateChip(date: String, onClick: () -> Unit) {
+    val description = stringResource(R.string.home_date_description, date)
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary),
+        color = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = description },
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Icon(painterResource(R.drawable.ic_calendar_month), contentDescription = null, modifier = Modifier.size(28.dp))
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(date, style = MaterialTheme.typography.titleLarge)
+                if (LocalUiPrefs.current.showHelperText) {
+                    Text(stringResource(R.string.home_date_helper), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
         }
     }
 }

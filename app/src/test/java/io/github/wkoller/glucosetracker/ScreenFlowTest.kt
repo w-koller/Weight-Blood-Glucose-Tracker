@@ -20,6 +20,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.github.wkoller.glucosetracker.data.db.toEntities
 import io.github.wkoller.glucosetracker.data.prefs.Settings
 import io.github.wkoller.glucosetracker.domain.model.DoseKind
 import io.github.wkoller.glucosetracker.domain.model.DoseStatus
@@ -34,6 +35,7 @@ import io.github.wkoller.glucosetracker.ui.theme.TrackerTheme
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -57,12 +59,26 @@ class ScreenFlowTest {
     private val app: TrackerApp get() = ApplicationProvider.getApplicationContext()
     private val repository get() = app.container.repository
 
+    // DataStore keeps one instance for the whole test run, so settings are reset before each test.
+    @Before
+    fun resetSettings() = runBlocking { app.container.settingsStore.update { Settings() } }
+
     private fun show(settings: Settings = Settings(setupDone = true), content: @Composable () -> Unit) {
         compose.setContent {
             TrackerTheme(settings) {
                 CompositionLocalProvider(LocalSpeaker provides null) { Surface { content() } }
             }
         }
+    }
+
+    /**
+     * Waits for work that finishes on a background thread and then resumes on the main thread, such as
+     * a database or settings write. Compose's own wait does not let the main looper run that resumption.
+     */
+    private fun waitForBackgroundWork(condition: () -> Boolean) = compose.waitUntil(10_000) {
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        Thread.sleep(20)
+        condition()
     }
 
     private fun waitFor(text: String) = compose.waitUntil(timeoutMillis = 10_000) {
@@ -99,53 +115,89 @@ class ScreenFlowTest {
 
     @Test
     fun `first-run setup creates a plan`() {
-        show(Settings()) { PlanSetupScreen(onClose = {}, onFinished = {}) }
+        var finished = false
+        show(Settings()) { PlanSetupScreen(onClose = {}, onFinished = { finished = true }) }
         waitFor("Welcome")
         shot("setup_01_welcome")
         click("Next")
+        waitFor("About you")
+        compose.onAllNodes(hasSetTextAction())[0].performTextInput("Mary")
+        compose.onAllNodes(hasSetTextAction())[1].performTextInput("Smith")
+        shot("setup_02_about_you")
+        click("Next")
         waitFor("Your prescription")
         compose.onAllNodes(hasSetTextAction())[0].performTextInput("NovoRapid")
-        shot("setup_02_prescription")
+        shot("setup_03_prescription")
         click("Next")
+        waitFor("Start with an empty table")
+        shot("setup_04_scale_start")
         click("Fill in a common scale")
-        shot("setup_03_scale")
+        waitFor("Above 20")
+        shot("setup_05_scale_table")
         click("Next")
-        click("I have checked this against my doctor’s order.")
-        shot("setup_04_scale_check")
+        click("I have checked this against my doctor\u2019s order.")
+        shot("setup_06_scale_check")
         click("Next")
         waitFor("Check times")
-        shot("setup_05_times")
         click("Next")
         click("Add a medicine")
-        val fields = compose.onAllNodes(hasSetTextAction())
-        fields[0].performTextInput("NovoMix 30")
+        compose.onAllNodes(hasSetTextAction())[0].performTextInput("NovoMix 30")
         click("Insulin, measured in units")
         compose.onAllNodes(hasSetTextAction())[2].performTextInput("30")
         compose.onAllNodes(hasSetTextAction())[4].performTextInput("26")
-        shot("setup_06_medicine_editor")
         click("Save this medicine")
         waitFor("NovoMix 30")
-        shot("setup_07_medicines")
         click("Next")
         waitFor("Your goals")
         compose.onAllNodes(hasSetTextAction())[0].performTextInput("115")
         compose.onAllNodes(hasSetTextAction())[1].performTextInput("100")
         click("Next")
         waitFor("Your target range")
-        shot("setup_08_targets")
         click("Next")
         click("Continue without a PIN")
         waitFor("Allow notifications")
         click("Next")
+        waitFor("Would you like to download the assistant now?")
+        shot("setup_07_assistant")
+        click("Not now")
         waitFor("Please review your plan")
-        shot("setup_09_review")
+        shot("setup_08_review")
         click("Start my plan")
-        compose.waitUntil(10_000) { runBlocking { repository.currentPlan() } != null }
+        // The wizard reports that it has finished only after the plan and the settings are both saved.
+        waitForBackgroundWork { finished }
         val plan = runBlocking { repository.currentPlan()!! }
         assertEquals("NovoRapid", plan.correctionInsulin)
         assertEquals(6, plan.scale.bands.size)
         assertEquals(mapOf(Slot.BREAKFAST to 30.0, Slot.DINNER to 26.0), plan.medicines.single().doses)
         assertEquals(115_000, plan.goals.startWeightGrams)
+        val settings = runBlocking { app.container.settingsStore.current() }
+        assertEquals("Mary Smith", settings.fullName)
+        assertEquals(false, settings.assistantEnabled)
+    }
+
+    @Test
+    fun `scale table errors name the range`() {
+        show(Settings()) { PlanSetupScreen(onClose = {}, onFinished = {}) }
+        click("Next")
+        click("Next")
+        waitFor("Your prescription")
+        compose.onAllNodes(hasSetTextAction())[0].performTextInput("NovoRapid")
+        click("Next")
+        click("Start with an empty table")
+        waitFor("Above the last range")
+        val fields = compose.onAllNodes(hasSetTextAction())
+        fields[0].performTextInput("10")
+        fields[1].performTextInput("0")
+        fields[2].performTextInput("8")
+        click("Next")
+        waitFor("Please fill in every box in the table.")
+        // Fill the empty boxes so the out-of-order number is the only problem left.
+        val boxes = compose.onAllNodes(hasSetTextAction())
+        boxes[3].performTextInput("2")
+        listOf(4 to "14", 5 to "4", 6 to "17", 7 to "6", 8 to "20", 9 to "8", 10 to "10").forEach { (i, v) -> boxes[i].performTextInput(v) }
+        click("Next")
+        waitFor("In the row that starts at 10.1 mmol/L, the top of the range must be more than the top of the range in the row above.")
+        shot("setup_09_scale_errors")
     }
 
     @Test
@@ -263,6 +315,69 @@ class ScreenFlowTest {
     }
 
     @Test
+    fun `the calendar colours each day by what was recorded`() {
+        val today = LocalDate.now()
+        runBlocking {
+            val rows = TestPlans.example().toEntities(1, java.time.Instant.now().minus(java.time.Duration.ofDays(20)))
+            val planId = app.container.database.planDao().insertFull(rows.plan, rows.bands, rows.slots, rows.medicines)
+            app.container.settingsStore.update { it.copy(setupDone = true) }
+            fun reading(date: LocalDate, slot: Slot) = GlucoseReading(0, planId, date.atTime(8, 0).atZone(java.time.ZoneId.systemDefault()).toInstant(), date, slot, 80, null, null)
+            fun dose(date: LocalDate, slot: Slot, key: String, name: String) = io.github.wkoller.glucosetracker.domain.model.DoseRecord(
+                0, planId, null, date.atTime(8, 0).atZone(java.time.ZoneId.systemDefault()).toInstant(), date, slot, DoseKind.FIXED, key, name,
+                io.github.wkoller.glucosetracker.domain.model.MedicineKind.TABLET, 1.0, 1.0, "tablet", DoseStatus.GIVEN, null, null,
+            )
+            val complete = today.minusDays(3)
+            Slot.scheduled.forEach { repository.addReading(reading(complete, it)) }
+            repository.addDose(dose(complete, Slot.BREAKFAST, "premix", "NovoMix 30"))
+            repository.addDose(dose(complete, Slot.DINNER, "premix", "NovoMix 30"))
+            repository.addDose(dose(complete, Slot.BREAKFAST, "spiro", "Spironolactone 25 mg"))
+            repository.addDose(dose(complete, Slot.BREAKFAST, "furo", "Furosemide 40 mg"))
+            repository.addReading(reading(today.minusDays(2), Slot.BREAKFAST))
+        }
+        show { io.github.wkoller.glucosetracker.ui.logbook.LogbookScreen(onBack = {}, onDay = {}) }
+        waitFor("What the colours mean")
+        if (today.minusDays(3).month != today.month) click("Earlier month")
+        compose.waitUntil(10_000) {
+            compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("all recorded", substring = true)).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("partly recorded", substring = true)).onFirst().assertExists()
+        compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("nothing recorded", substring = true)).onFirst().assertExists()
+        shot("logbook_01_calendar")
+    }
+
+    @Test
+    fun `home greets the user by name`() {
+        seedPlan()
+        runBlocking { app.container.settingsStore.update { it.copy(firstName = "Mary") } }
+        show { HomeScreen(HomeActions({ _, _ -> }, {}, {}, {}, {}, {}, {}, {})) }
+        waitFor(", Mary")
+        waitFor("Tap to see your calendar.")
+        shot("home_03_name")
+    }
+
+    @Test
+    fun `small text size`() {
+        seedPlan()
+        show(Settings(setupDone = true, textSize = io.github.wkoller.glucosetracker.data.prefs.TextSize.SMALL)) {
+            HomeScreen(HomeActions({ _, _ -> }, {}, {}, {}, {}, {}, {}, {}))
+        }
+        waitFor("What to do next")
+        shot("home_04_small_text")
+    }
+
+    @Test
+    fun `the model download is declared and starts without crashing`() {
+        val info = app.packageManager.getPackageInfo(app.packageName, android.content.pm.PackageManager.GET_PERMISSIONS)
+        assertTrue(info.requestedPermissions!!.contains(android.Manifest.permission.INTERNET))
+        val models = app.container.models
+        val directory = app.getExternalFilesDir(io.github.wkoller.glucosetracker.ai.ModelManager.MODEL_DIR)!!.apply { mkdirs() }
+        org.robolectric.shadows.ShadowStatFs.registerStats(directory, 2_000_000, 2_000_000, 2_000_000)
+        models.startDownload()
+        assertTrue(models.state.value is io.github.wkoller.glucosetracker.ai.ModelState.Downloading)
+        models.cancelDownload()
+    }
+
+    @Test
     fun `home shows the next step and today`() {
         seedPlan()
         runBlocking {
@@ -271,7 +386,7 @@ class ScreenFlowTest {
             repository.addReading(GlucoseReading(0, plan.id, repository.instant(), today, Slot.BREAKFAST, 137, null, null))
             repository.addMeasurement(io.github.wkoller.glucosetracker.domain.model.BodyMeasurement(0, repository.instant(), LocalDate.now(), 116_510, null, null))
         }
-        show { HomeScreen(HomeActions({ _, _ -> }, {}, {}, {}, {}, {}, {})) }
+        show { HomeScreen(HomeActions({ _, _ -> }, {}, {}, {}, {}, {}, {}, {})) }
         waitFor("What to do next")
         shot("home_01")
     }
@@ -280,7 +395,7 @@ class ScreenFlowTest {
     fun `home in maximum contrast and largest text`() {
         seedPlan()
         show(Settings(setupDone = true, maxContrast = true, textSize = io.github.wkoller.glucosetracker.data.prefs.TextSize.LARGEST)) {
-            HomeScreen(HomeActions({ _, _ -> }, {}, {}, {}, {}, {}, {}))
+            HomeScreen(HomeActions({ _, _ -> }, {}, {}, {}, {}, {}, {}, {}))
         }
         waitFor("What to do next")
         shot("home_02_max_contrast_largest")

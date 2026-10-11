@@ -95,6 +95,7 @@ fun AppNavHost(startWithSetup: Boolean, openSlot: Slot?, onSlotOpened: () -> Uni
             HomeScreen(
                 HomeActions(
                     checkIn = { slot, medicinesOnly -> navController.navigate(Routes.checkIn(slot, medicinesOnly)) },
+                    calendar = { navController.navigate(Routes.LOGBOOK) },
                     measure = { navController.navigate(Routes.measure(it)) },
                     medicines = { navController.navigate(Routes.MEDICINES) },
                     logbook = { navController.navigate(Routes.LOGBOOK) },

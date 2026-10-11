@@ -36,6 +36,12 @@ data class StatusColors(
     val onInfoContainer: Color,
     val highlight: Color,
     val onHighlight: Color,
+    val dayComplete: Color,
+    val onDayComplete: Color,
+    val dayPartial: Color,
+    val onDayPartial: Color,
+    val dayNone: Color,
+    val onDayNone: Color,
 )
 
 /** Display choices from Settings › Display and accessibility, read by the shared components. */
@@ -129,6 +135,9 @@ private val LightStatus = StatusColors(
     dangerContainer = Color(0xFFFFDAD6), onDangerContainer = Color(0xFF410002),
     infoContainer = Color(0xFFD6E6F7), onInfoContainer = Color(0xFF062B4D),
     highlight = Color(0xFFFFE08A), onHighlight = Color(0xFF15181C),
+    dayComplete = Color(0xFFC8EBCF), onDayComplete = Color(0xFF0E3B1A),
+    dayPartial = Color(0xFFFFEFA8), onDayPartial = Color(0xFF3D2E00),
+    dayNone = Color(0xFFFFD2D2), onDayNone = Color(0xFF5C0A0A),
 )
 
 private val DarkStatus = StatusColors(
@@ -139,6 +148,9 @@ private val DarkStatus = StatusColors(
     dangerContainer = Color(0xFF5C1210), onDangerContainer = Color(0xFFFFDAD6),
     infoContainer = Color(0xFF0B3A66), onInfoContainer = Color(0xFFE2EEFF),
     highlight = Color(0xFF5A4A00), onHighlight = Color(0xFFFFF4C2),
+    dayComplete = Color(0xFF1F4D2B), onDayComplete = Color(0xFFD5F5DC),
+    dayPartial = Color(0xFF5A4A00), onDayPartial = Color(0xFFFFF2B3),
+    dayNone = Color(0xFF6B1A1A), onDayNone = Color(0xFFFFDADA),
 )
 
 private val MaxContrastStatus = StatusColors(
@@ -149,6 +161,9 @@ private val MaxContrastStatus = StatusColors(
     dangerContainer = Color(0xFFFF8A80), onDangerContainer = Color.Black,
     infoContainer = Color(0xFF7DF9FF), onInfoContainer = Color.Black,
     highlight = Color(0xFFFFE600), onHighlight = Color.Black,
+    dayComplete = Color(0xFF00E676), onDayComplete = Color.Black,
+    dayPartial = Color(0xFFFFE600), onDayPartial = Color.Black,
+    dayNone = Color(0xFFFF6E6E), onDayNone = Color.Black,
 )
 
 // Sizes are larger than Material defaults: body text starts at 20sp before the text-size setting is applied.

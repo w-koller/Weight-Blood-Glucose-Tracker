@@ -77,7 +77,9 @@ class ExportViewModel(private val container: AppContainer) : ViewModel() {
         val file = File(directory, "weight-glucose-$from-to-$today.${format.extension}")
         when (format) {
             ExportFormat.CSV -> file.writeText(CsvExporter(container.appContext).build(plan, days))
-            ExportFormat.PDF -> PdfReportWriter(container.appContext).write(file, plan, from, today, days, LocalDate.now(container.clock))
+            ExportFormat.PDF -> PdfReportWriter(container.appContext).write(
+                file, plan, from, today, days, LocalDate.now(container.clock), container.settingsStore.current().fullName,
+            )
         }
         return FileProvider.getUriForFile(container.appContext, "${container.appContext.packageName}.files", file)
     }

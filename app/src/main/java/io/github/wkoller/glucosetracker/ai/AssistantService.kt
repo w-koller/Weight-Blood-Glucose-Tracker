@@ -31,6 +31,7 @@ data class AssistantContext(
     val weekFacts: ReadoutFacts,
     val readings: List<GlucoseReading>,
     val doses: List<DoseRecord>,
+    val firstName: String? = null,
 ) {
     fun facts(period: ReadoutPeriod) = if (period == ReadoutPeriod.TODAY) todayFacts else weekFacts
 }
@@ -54,7 +55,11 @@ sealed interface AssistantReply {
  * answer that mentions an insulin amount not found in the user's records is replaced by the app's
  * fixed dose answer.
  */
-class AssistantService(private val repository: TrackerRepository, private val models: ModelManager) {
+class AssistantService(
+    private val repository: TrackerRepository,
+    private val models: ModelManager,
+    private val settings: io.github.wkoller.glucosetracker.data.prefs.SettingsStore,
+) {
     @Volatile
     private var current: Conversation? = null
 
@@ -72,6 +77,7 @@ class AssistantService(private val repository: TrackerRepository, private val mo
             weekFacts = ReadoutBuilder.build(ReadoutPeriod.WEEK, plan, today, readings, doses, measurements),
             readings = readings,
             doses = doses,
+            firstName = settings.current().firstName.ifBlank { null },
         )
     }
 
@@ -95,7 +101,7 @@ class AssistantService(private val repository: TrackerRepository, private val mo
 
     private fun generate(context: AssistantContext, prompt: String, history: List<Pair<String, String>>): Flow<AssistantReply> = channelFlow {
         if (!models.isLoaded) send(AssistantReply.Loading)
-        val system = PromptBuilder.systemPrompt(context.plan) + "\n\n" +
+        val system = PromptBuilder.systemPrompt(context.plan, context.firstName) + "\n\n" +
             PromptBuilder.factsBlock(context.plan, context.weekFacts, context.today, context.readings, context.doses)
         val allowed = PromptBuilder.allowedAmounts(context.plan, context.doses)
         try {

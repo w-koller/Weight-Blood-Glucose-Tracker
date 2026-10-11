@@ -19,7 +19,10 @@ import java.util.UUID
 
 enum class SetupMode { FIRST, EDIT, NEW }
 
-enum class SetupStep { WELCOME, INSULIN, SCALE, SCALE_CHECK, TIMES, MEDICINES, GOALS, TARGETS, PIN, PERMISSIONS, REVIEW }
+enum class SetupStep { WELCOME, ABOUT_YOU, INSULIN, SCALE, SCALE_CHECK, TIMES, MEDICINES, GOALS, TARGETS, PIN, PERMISSIONS, ASSISTANT, REVIEW }
+
+/** Steps that belong to the first setup only. Changing a plan or starting a new one skips them. */
+private val FIRST_RUN_ONLY = setOf(SetupStep.WELCOME, SetupStep.ABOUT_YOU, SetupStep.PIN, SetupStep.PERMISSIONS, SetupStep.ASSISTANT)
 
 enum class PinError { INVALID, MISMATCH }
 
@@ -37,6 +40,10 @@ data class SetupUi(
     val pinConfirm: String = "",
     val pinError: PinError? = null,
     val chosenPin: String? = null,
+    val firstName: String = "",
+    val familyName: String = "",
+    /** Whether to download the assistant model after setup. Null until the user chooses. */
+    val downloadModel: Boolean? = null,
     val changes: List<String>? = null,
     val saving: Boolean = false,
     val finished: Boolean = false,
@@ -71,11 +78,14 @@ class PlanSetupViewModel(private val container: AppContainer, handle: SavedState
             }
             val steps = when (mode) {
                 SetupMode.FIRST -> SetupStep.entries.toList()
-                else -> SetupStep.entries.filter { it != SetupStep.WELCOME && it != SetupStep.PIN && it != SetupStep.PERMISSIONS }
+                else -> SetupStep.entries.filter { it !in FIRST_RUN_ONLY }
             }
+            val settings = container.settingsStore.current()
             _ui.update {
                 it.copy(
                     loading = false,
+                    firstName = settings.firstName,
+                    familyName = settings.familyName,
                     steps = steps,
                     step = if (mode == SetupMode.EDIT) SetupStep.REVIEW else steps.first(),
                     draft = draft,
@@ -92,9 +102,13 @@ class PlanSetupViewModel(private val container: AppContainer, handle: SavedState
 
     fun useCommonScale() = editBands { PlanDraft.commonBands() }
 
-    fun addBand() = editBands { bands -> bands.dropLast(1) + BandDraft("", "") + bands.last() }
+    fun startEmptyTable() = editBands { PlanDraft.emptyBands() }
 
-    fun removeBand() = editBands { bands -> if (bands.size > 1) bands.dropLast(2) + bands.last() else bands }
+    /** Adds a range just above the open top row. */
+    fun addBand() = editBands { bands -> if (bands.isEmpty()) PlanDraft.emptyBands() else bands.dropLast(1) + BandDraft("", "") + bands.last() }
+
+    /** Removes the last range before the open top row, keeping at least one range. */
+    fun removeBand() = editBands { bands -> if (bands.size > 2) bands.dropLast(2) + bands.last() else bands }
 
     fun setBand(index: Int, band: BandDraft) = editBands { bands -> bands.toMutableList().also { it[index] = band } }
 
@@ -126,6 +140,15 @@ class PlanSetupViewModel(private val container: AppContainer, handle: SavedState
     }
 
     fun removeMedicine(key: String) = edit { draft -> draft.copy(medicines = draft.medicines.filterNot { it.key == key }) }
+
+    fun setFirstName(name: String) = _ui.update { it.copy(firstName = name) }
+
+    fun setFamilyName(name: String) = _ui.update { it.copy(familyName = name) }
+
+    fun chooseAssistant(download: Boolean) {
+        _ui.update { it.copy(downloadModel = download) }
+        next()
+    }
 
     fun setPin(pin: String) = _ui.update { it.copy(pin = pin.filter(Char::isDigit).take(4), pinError = null) }
 
@@ -222,6 +245,7 @@ class PlanSetupViewModel(private val container: AppContainer, handle: SavedState
         _ui.update { it.copy(saving = true, changes = null) }
         viewModelScope.launch {
             container.repository.savePlanVersion(state.draft.toPlan())
+            val downloadModel = state.mode == SetupMode.FIRST && state.downloadModel == true
             container.settingsStore.update { settings ->
                 val pin = state.chosenPin
                 val withPin = if (pin != null) {
@@ -230,9 +254,15 @@ class PlanSetupViewModel(private val container: AppContainer, handle: SavedState
                 } else {
                     settings
                 }
-                withPin.copy(setupDone = true)
+                val withName = if (state.mode == SetupMode.FIRST) {
+                    withPin.copy(firstName = state.firstName.trim(), familyName = state.familyName.trim())
+                } else {
+                    withPin
+                }
+                withName.copy(setupDone = true, assistantEnabled = withName.assistantEnabled || downloadModel)
             }
             container.onPlanChanged()
+            if (downloadModel) container.models.startDownload()
             _ui.update { it.copy(saving = false, finished = true) }
         }
     }

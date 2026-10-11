@@ -9,7 +9,22 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -44,6 +59,7 @@ import io.github.wkoller.glucosetracker.ui.appContainer
 import io.github.wkoller.glucosetracker.ui.components.BigButton
 import io.github.wkoller.glucosetracker.ui.components.ButtonStyle
 import io.github.wkoller.glucosetracker.ui.components.CheckRow
+import io.github.wkoller.glucosetracker.ui.components.ConfirmDialog
 import io.github.wkoller.glucosetracker.ui.components.DateField
 import io.github.wkoller.glucosetracker.ui.components.FactRow
 import io.github.wkoller.glucosetracker.ui.components.LabeledField
@@ -65,23 +81,33 @@ private fun Body(text: String) = Text(text, style = MaterialTheme.typography.bod
 
 /** Shows the problems that stop the user moving on, as full sentences. */
 @Composable
-fun DraftErrors(errors: List<DraftError>) {
+fun DraftErrors(errors: List<DraftError>, draft: PlanDraft? = null) {
     if (errors.isEmpty()) return
     NoticeCard(
         kind = NoticeKind.DANGER,
         title = stringResource(R.string.setup_errors_title),
-        body = errors.map { draftErrorText(it) }.joinToString("\n"),
+        body = errors.map { draftErrorText(it, draft) }.joinToString("\n"),
     )
 }
 
+/** "the row that starts at 10.1 mmol/L", "the last row" or, when the start is not known yet, "row 3". */
 @Composable
-fun draftErrorText(error: DraftError): String = when (error) {
+private fun rowName(draft: PlanDraft?, row: Int): String {
+    val index = row - 1
+    if (draft != null && index == draft.bands.lastIndex) return stringResource(R.string.scale_row_name_last)
+    val lower = draft?.lowerBoundText(index)
+    return if (lower != null) stringResource(R.string.scale_row_name_range, lower) else stringResource(R.string.scale_row_name_number, row)
+}
+
+@Composable
+fun draftErrorText(error: DraftError, draft: PlanDraft? = null): String = when (error) {
     DraftError.InsulinNameMissing -> stringResource(R.string.error_insulin_name)
-    is DraftError.BandUpperInvalid -> stringResource(R.string.error_band_upper, error.row)
-    is DraftError.BandUnitsInvalid -> stringResource(R.string.error_band_units, error.row)
-    is DraftError.BandNotAscending -> stringResource(R.string.error_band_order, error.row)
-    is DraftError.BandUpperOutOfRange -> stringResource(R.string.error_band_upper_range, error.row)
-    is DraftError.BandUnitsOutOfRange -> stringResource(R.string.error_band_units_range, error.row)
+    DraftError.ScaleEmpty -> stringResource(R.string.error_scale_empty)
+    is DraftError.BandUpperInvalid -> stringResource(R.string.error_band_upper, rowName(draft, error.row))
+    is DraftError.BandUnitsInvalid -> stringResource(R.string.error_band_units, rowName(draft, error.row))
+    is DraftError.BandNotAscending -> stringResource(R.string.error_band_order, rowName(draft, error.row))
+    is DraftError.BandUpperOutOfRange -> stringResource(R.string.error_band_upper_range, rowName(draft, error.row))
+    is DraftError.BandUnitsOutOfRange -> stringResource(R.string.error_band_units_range, rowName(draft, error.row))
     DraftError.ScaleNotChecked -> stringResource(R.string.error_scale_not_checked)
     DraftError.NoCheckTimes -> stringResource(R.string.error_no_check_times)
     DraftError.MedicineNameMissing -> stringResource(R.string.error_medicine_name)
@@ -108,13 +134,7 @@ fun ColumnScope.WelcomeStep() {
     Body(stringResource(R.string.setup_welcome_text_size))
     TextSize.entries.forEach { size ->
         OptionRow(
-            title = stringResource(
-                when (size) {
-                    TextSize.LARGE -> R.string.text_size_large
-                    TextSize.EXTRA_LARGE -> R.string.text_size_extra_large
-                    TextSize.LARGEST -> R.string.text_size_largest
-                },
-            ),
+            title = stringResource(size.labelRes()),
             description = null,
             selected = settings.textSize == size,
             onSelect = { scope.launch { container.settingsStore.update { it.copy(textSize = size) } } },
@@ -122,6 +142,50 @@ fun ColumnScope.WelcomeStep() {
     }
     NoticeCard(NoticeKind.INFO, stringResource(R.string.about_disclaimer_title), stringResource(R.string.about_disclaimer))
 }
+
+@Composable
+fun ColumnScope.AboutYouStep(ui: SetupUi, vm: PlanSetupViewModel) {
+    Body(stringResource(R.string.setup_about_body))
+    LabeledField(
+        label = stringResource(R.string.setup_first_name),
+        value = ui.firstName,
+        onValueChange = vm::setFirstName,
+        hint = stringResource(R.string.setup_first_name_hint),
+    )
+    LabeledField(
+        label = stringResource(R.string.setup_family_name),
+        value = ui.familyName,
+        onValueChange = vm::setFamilyName,
+    )
+}
+
+@Composable
+fun ColumnScope.AssistantStep(ui: SetupUi) {
+    val context = LocalContext.current
+    val container = appContainer()
+    val memoryBytes = remember {
+        android.app.ActivityManager.MemoryInfo().also { context.getSystemService(android.app.ActivityManager::class.java).getMemoryInfo(it) }.totalMem
+    }
+    val hasRoom = remember { container.models.hasRoomForModel() }
+    Body(stringResource(R.string.assistant_setup_body, io.github.wkoller.glucosetracker.ai.ModelManager.MODEL_NAME))
+    NoticeCard(NoticeKind.INFO, stringResource(R.string.assistant_limits_title), stringResource(R.string.assistant_limits))
+    Body(stringResource(R.string.setup_assistant_question))
+    if (memoryBytes in 1 until RECOMMENDED_MEMORY_BYTES) {
+        NoticeCard(NoticeKind.WARNING, stringResource(R.string.setup_assistant_memory_title), stringResource(R.string.setup_assistant_memory))
+    }
+    if (!hasRoom) {
+        NoticeCard(NoticeKind.WARNING, stringResource(R.string.setup_assistant_space_title), stringResource(R.string.assistant_failed_space))
+    }
+    ui.downloadModel?.let {
+        Text(
+            stringResource(if (it) R.string.setup_assistant_chosen_yes else R.string.setup_assistant_chosen_no),
+            style = MaterialTheme.typography.titleMedium,
+        )
+    }
+}
+
+/** The assistant needs about 6 GB of memory to run comfortably beside other apps. */
+private const val RECOMMENDED_MEMORY_BYTES = 6L * 1024 * 1024 * 1024
 
 @Composable
 fun ColumnScope.InsulinStep(ui: SetupUi, vm: PlanSetupViewModel) {
@@ -150,50 +214,183 @@ fun ColumnScope.InsulinStep(ui: SetupUi, vm: PlanSetupViewModel) {
 @Composable
 fun ColumnScope.ScaleStep(ui: SetupUi, vm: PlanSetupViewModel) {
     val draft = ui.draft
+    var confirmCommon by remember { mutableStateOf(false) }
     Body(stringResource(R.string.setup_scale_body))
-    DraftErrors(ui.errors)
-    draft.bands.forEachIndexed { index, band ->
-        val isLast = index == draft.bands.lastIndex
-        SectionCard(title = stringResource(R.string.setup_scale_row, index + 1)) {
-            if (isLast) {
-                val above = draft.bands.getOrNull(index - 1)?.upper?.ifBlank { null }
-                Text(
-                    if (above != null) stringResource(R.string.setup_scale_last_row, above) else stringResource(R.string.setup_scale_last_row_unknown),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            } else {
-                Text(
-                    stringResource(R.string.setup_scale_from, draft.lowerBoundText(index) ?: "?"),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                LabeledField(
-                    label = stringResource(R.string.setup_scale_to),
-                    value = band.upper,
-                    onValueChange = { vm.setBand(index, band.copy(upper = it)) },
-                    suffix = stringResource(R.string.unit_mmol),
-                    numeric = true,
-                )
-            }
-            LabeledField(
-                label = stringResource(R.string.setup_scale_units),
-                value = band.units,
-                onValueChange = { vm.setBand(index, band.copy(units = it.filter(Char::isDigit))) },
-                suffix = stringResource(R.string.units_word),
-                numeric = true,
-            )
-        }
+    ScaleErrors(ui.errors, draft)
+    if (draft.bands.isEmpty()) {
+        Body(stringResource(R.string.setup_scale_start))
+        BigButton(
+            stringResource(R.string.setup_scale_common),
+            onClick = vm::useCommonScale,
+            helper = stringResource(R.string.setup_scale_common_helper),
+        )
+        BigButton(
+            stringResource(R.string.setup_scale_empty),
+            onClick = vm::startEmptyTable,
+            helper = stringResource(R.string.setup_scale_empty_helper),
+            style = ButtonStyle.SECONDARY,
+        )
+        return
     }
+    ScaleEditor(ui, vm)
     BigButton(stringResource(R.string.setup_scale_add_row), onClick = vm::addBand, icon = R.drawable.ic_add, style = ButtonStyle.SECONDARY)
-    if (draft.bands.size > 1) {
+    if (draft.bands.size > 2) {
         BigButton(stringResource(R.string.setup_scale_remove_row), onClick = vm::removeBand, icon = R.drawable.ic_remove, style = ButtonStyle.SECONDARY)
     }
     BigButton(
         stringResource(R.string.setup_scale_common),
-        onClick = vm::useCommonScale,
+        onClick = { if (draft.bands.any { it.upper.isNotBlank() || it.units.isNotBlank() }) confirmCommon = true else vm.useCommonScale() },
         helper = stringResource(R.string.setup_scale_common_helper),
         style = ButtonStyle.SECONDARY,
     )
+    if (confirmCommon) {
+        ConfirmDialog(
+            title = stringResource(R.string.setup_scale_common_confirm_title),
+            messages = listOf(stringResource(R.string.setup_scale_common_confirm)),
+            confirmText = stringResource(R.string.setup_scale_common),
+            dismissText = stringResource(R.string.cancel),
+            onConfirm = { confirmCommon = false; vm.useCommonScale() },
+            onDismiss = { confirmCommon = false },
+        )
+    }
 }
+
+/**
+ * Empty boxes are reported once, with the red outlines showing where they are, so a half-filled table
+ * does not produce a long list. Numbers that are out of order or out of range are still named one by one.
+ */
+@Composable
+private fun ScaleErrors(errors: List<DraftError>, draft: PlanDraft) {
+    if (errors.isEmpty()) return
+    fun blank(error: DraftError): Boolean = when (error) {
+        is DraftError.BandUpperInvalid -> draft.bands.getOrNull(error.row - 1)?.upper?.isBlank() == true
+        is DraftError.BandUnitsInvalid -> draft.bands.getOrNull(error.row - 1)?.units?.isBlank() == true
+        else -> false
+    }
+    val messages = buildList {
+        if (errors.any(::blank)) add(stringResource(R.string.error_scale_boxes_empty))
+        errors.filterNot(::blank).forEach { add(draftErrorText(it, draft)) }
+    }
+    NoticeCard(NoticeKind.DANGER, stringResource(R.string.setup_errors_title), messages.joinToString("\n"))
+}
+
+/**
+ * The scale as a table laid out like the paper order: a BGL range on the left and units on the right.
+ * Only the top of each range is typed; the start is worked out from the row above. With large text,
+ * each row stacks the units under the range so nothing is squeezed.
+ */
+@Composable
+private fun ScaleEditor(ui: SetupUi, vm: PlanSetupViewModel) {
+    val draft = ui.draft
+    val insulin = draft.correctionInsulin.ifBlank { stringResource(R.string.insulin_fallback) }
+    val stacked = LocalDensity.current.fontScale > STACK_FONT_SCALE
+    val rowsWithErrors = ui.errors.mapNotNull {
+        when (it) {
+            is DraftError.BandUpperInvalid -> it.row to true
+            is DraftError.BandNotAscending -> it.row to true
+            is DraftError.BandUpperOutOfRange -> it.row to true
+            is DraftError.BandUnitsInvalid -> it.row to false
+            is DraftError.BandUnitsOutOfRange -> it.row to false
+            else -> null
+        }
+    }
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(vertical = 8.dp)) {
+            if (!stacked) {
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text(stringResource(R.string.scale_header_bgl), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.scale_header_units, insulin), style = MaterialTheme.typography.titleSmall, modifier = Modifier.width(UNITS_COLUMN))
+                }
+                HorizontalDivider()
+            }
+            draft.bands.forEachIndexed { index, band ->
+                val row = index + 1
+                val isLast = index == draft.bands.lastIndex
+                val lower = draft.lowerBoundText(index)
+                val aboveValue = draft.bands.getOrNull(index - 1)?.upper?.ifBlank { null }
+                val rangeLabel = if (isLast) {
+                    if (aboveValue != null) stringResource(R.string.scale_above, aboveValue) else stringResource(R.string.setup_scale_above_unknown)
+                } else {
+                    stringResource(R.string.setup_scale_up_to, lower ?: "…")
+                }
+                val upperDescription = stringResource(R.string.setup_scale_upper_description, lower ?: "…")
+                val unitsDescription = if (isLast) {
+                    stringResource(R.string.setup_scale_units_description_last, insulin, aboveValue ?: "…")
+                } else {
+                    stringResource(R.string.setup_scale_units_description, insulin, lower ?: "…", band.upper.ifBlank { "…" })
+                }
+                val upperError = rowsWithErrors.any { it.first == row && it.second }
+                val unitsError = rowsWithErrors.any { it.first == row && !it.second }
+                val upperField: @Composable () -> Unit = {
+                    ScaleField(band.upper, { vm.setBand(index, band.copy(upper = it)) }, upperDescription, upperError, decimal = true)
+                }
+                val unitsField: @Composable () -> Unit = {
+                    ScaleField(band.units, { vm.setBand(index, band.copy(units = it.filter(Char::isDigit))) }, unitsDescription, unitsError, decimal = false)
+                }
+                if (stacked) {
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(rangeLabel, style = MaterialTheme.typography.titleMedium)
+                            if (!isLast) {
+                                Spacer(Modifier.width(8.dp))
+                                upperField()
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.unit_mmol), style = MaterialTheme.typography.bodyLarge)
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            unitsField()
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.setup_scale_units_of, insulin), style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Text(rangeLabel, style = MaterialTheme.typography.titleMedium, modifier = if (isLast) Modifier else Modifier.widthIn(min = RANGE_LABEL))
+                            if (!isLast) {
+                                Spacer(Modifier.width(8.dp))
+                                upperField()
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.width(UNITS_COLUMN)) {
+                            unitsField()
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.units_word), style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
+                if (!isLast) HorizontalDivider()
+            }
+        }
+    }
+    Body(stringResource(R.string.setup_scale_how))
+}
+
+@Composable
+private fun ScaleField(value: String, onChange: (String) -> Unit, description: String, error: Boolean, decimal: Boolean) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        singleLine = true,
+        isError = error,
+        textStyle = MaterialTheme.typography.titleLarge,
+        keyboardOptions = KeyboardOptions(keyboardType = if (decimal) KeyboardType.Decimal else KeyboardType.Number, imeAction = ImeAction.Next),
+        modifier = Modifier
+            .width(if (decimal) 92.dp else 76.dp)
+            .heightIn(min = 60.dp)
+            .semantics { contentDescription = description },
+    )
+}
+
+private val UNITS_COLUMN = 132.dp
+private val RANGE_LABEL = 104.dp
+private const val STACK_FONT_SCALE = 1.1f
 
 @Composable
 fun ColumnScope.ScaleCheckStep(ui: SetupUi, vm: PlanSetupViewModel) {
@@ -432,6 +629,15 @@ fun ColumnScope.ReviewStep(ui: SetupUi, vm: PlanSetupViewModel) {
     val insulin = draft.correctionInsulin
     if (ui.mode == SetupMode.EDIT) Body(stringResource(R.string.setup_review_edit_body)) else Body(stringResource(R.string.setup_review_body))
 
+    if (ui.mode == SetupMode.FIRST) {
+        SectionCard(stringResource(R.string.setup_about_title)) {
+            val notSet = stringResource(R.string.not_set)
+            FactRow(stringResource(R.string.setup_first_name), ui.firstName.ifBlank { notSet })
+            FactRow(stringResource(R.string.setup_family_name), ui.familyName.ifBlank { notSet })
+            BigButton(stringResource(R.string.change), onClick = { vm.goTo(SetupStep.ABOUT_YOU) }, icon = R.drawable.ic_edit, style = ButtonStyle.SECONDARY)
+        }
+    }
+
     SectionCard(stringResource(R.string.setup_insulin_title)) {
         FactRow(stringResource(R.string.setup_insulin_name), insulin)
         FactRow(stringResource(R.string.setup_prescriber), draft.prescriber.ifBlank { stringResource(R.string.not_set) })
@@ -484,7 +690,14 @@ fun ColumnScope.ReviewStep(ui: SetupUi, vm: PlanSetupViewModel) {
         FactRow(stringResource(R.string.setup_hypo), "${draft.hypo} $mmol")
         BigButton(stringResource(R.string.change), onClick = { vm.goTo(SetupStep.TARGETS) }, icon = R.drawable.ic_edit, style = ButtonStyle.SECONDARY)
     }
+    if (ui.mode == SetupMode.FIRST) {
+        SectionCard(stringResource(R.string.setup_assistant_title)) {
+            Text(
+                stringResource(if (ui.downloadModel == true) R.string.setup_assistant_chosen_yes else R.string.setup_assistant_chosen_no),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            BigButton(stringResource(R.string.change), onClick = { vm.goTo(SetupStep.ASSISTANT) }, icon = R.drawable.ic_edit, style = ButtonStyle.SECONDARY)
+        }
+    }
 }
 
-/** Kept here so the review and the plan screen show weights the same way. */
-internal fun kgText(grams: Int?): String? = grams?.let(Measures::formatKg)

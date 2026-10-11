@@ -12,6 +12,7 @@ class TrackerApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        CrashReporter.install(this)
         container = AppContainer(this)
         // Alarms are lost when the app is force-stopped, so they are set again whenever the app starts.
         appScope.launch { container.reminders.rescheduleAll() }

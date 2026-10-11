@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
-enum class TextSize(val scale: Float) { LARGE(1.0f), EXTRA_LARGE(1.2f), LARGEST(1.4f) }
+enum class TextSize(val scale: Float) { SMALL(0.8f), MEDIUM(0.9f), LARGE(1.0f), EXTRA_LARGE(1.2f), LARGEST(1.4f) }
 
 enum class ThemeChoice { SYSTEM, LIGHT, DARK }
 
@@ -32,8 +32,13 @@ data class Settings(
     val pinHash: String? = null,
     val pinSalt: String? = null,
     val assistantEnabled: Boolean = false,
+    val firstName: String = "",
+    val familyName: String = "",
 ) {
     val hasPin: Boolean get() = pinHash != null && pinSalt != null
+
+    /** The full name for reports, or null when no name was entered. */
+    val fullName: String? get() = listOf(firstName, familyName).filter { it.isNotBlank() }.joinToString(" ").ifBlank { null }
 }
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -56,6 +61,8 @@ class SettingsStore(private val context: Context) {
         val pinHash = stringPreferencesKey("pin_hash")
         val pinSalt = stringPreferencesKey("pin_salt")
         val assistantEnabled = booleanPreferencesKey("assistant_enabled")
+        val firstName = stringPreferencesKey("first_name")
+        val familyName = stringPreferencesKey("family_name")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { it.toSettings() }
@@ -84,6 +91,8 @@ class SettingsStore(private val context: Context) {
             pinHash = this[Keys.pinHash],
             pinSalt = this[Keys.pinSalt],
             assistantEnabled = this[Keys.assistantEnabled] ?: defaults.assistantEnabled,
+            firstName = this[Keys.firstName] ?: defaults.firstName,
+            familyName = this[Keys.familyName] ?: defaults.familyName,
         )
     }
 
@@ -108,5 +117,7 @@ class SettingsStore(private val context: Context) {
             remove(Keys.pinSalt)
         }
         this[Keys.assistantEnabled] = s.assistantEnabled
+        this[Keys.firstName] = s.firstName.trim()
+        this[Keys.familyName] = s.familyName.trim()
     }
 }
