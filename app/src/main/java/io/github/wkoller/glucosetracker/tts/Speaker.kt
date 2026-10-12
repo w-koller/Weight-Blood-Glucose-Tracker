@@ -37,7 +37,8 @@ class Speaker(private val context: Context, private val natural: () -> NaturalVo
                 val voices = natural()
                 if (voices.isReady) {
                     naturalUsed = true
-                    voices.speak(text, voice.speakerId, naturalSpeed(rate))
+                    // If the natural voice fails, the phone's default voice reads the text instead.
+                    voices.speak(text, voice.speakerId, naturalSpeed(rate)) { speakOnPhone(text, rate, null) }
                 } else {
                     speakOnPhone(text, rate, null)
                 }

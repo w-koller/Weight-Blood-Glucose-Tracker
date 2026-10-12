@@ -26,6 +26,15 @@ class VoiceTest {
         assertEquals(VoiceChoice.PhoneDefault, VoiceChoice.decode("something else"))
     }
 
+    @Test
+    fun `the audio callback has the exact method sherpa-onnx looks up`() {
+        // sherpa-onnx calls GetMethodID(cls, "invoke", "([F)Ljava/lang/Integer;"). Without it the app closed.
+        val method = AudioSink { true }.javaClass.getMethod("invoke", FloatArray::class.java)
+        assertEquals(Int::class.javaObjectType, method.returnType)
+        assertEquals(1, AudioSink { true }.invoke(FloatArray(1)))
+        assertEquals(0, AudioSink { false }.invoke(FloatArray(1)))
+    }
+
     private fun archive(vararg entries: Pair<String, String>): File {
         val file = folder.newFile("pack.tar.bz2")
         TarArchiveOutputStream(BZip2CompressorOutputStream(file.outputStream())).use { tar ->

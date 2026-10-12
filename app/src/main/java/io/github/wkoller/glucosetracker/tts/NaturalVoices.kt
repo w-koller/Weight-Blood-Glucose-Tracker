@@ -29,6 +29,15 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
 
+/**
+ * Receives each piece of audio from sherpa-onnx. Its native code looks up a method named invoke that
+ * takes a float[] and returns an Integer. A Kotlin 2 lambda does not have that exact method, so the
+ * lookup failed and the app closed. A named class does have it. Returning false stops the speech.
+ */
+class AudioSink(private val write: (FloatArray) -> Boolean) : (FloatArray) -> Int {
+    override fun invoke(samples: FloatArray): Int = if (write(samples)) 1 else 0
+}
+
 sealed interface NaturalVoiceState {
     data object NotInstalled : NaturalVoiceState
     data class Downloading(val downloadedBytes: Long, val totalBytes: Long) : NaturalVoiceState
@@ -156,7 +165,7 @@ class NaturalVoices(private val context: Context) {
                 marker.createNewFile()
                 download.cancel()
                 install.value = Install.INSTALLED
-            } catch (error: Exception) {
+            } catch (error: Throwable) {
                 CrashReporter.record(context, error)
                 install.value = Install.FAILED
             } finally {
@@ -165,10 +174,16 @@ class NaturalVoices(private val context: Context) {
         }
     }
 
-    /** Speaks [text] with [speaker]. [speed] is 1.0 for a normal pace. Stops anything already being said. */
-    fun speak(text: String, speaker: Int, speed: Float) {
+    /**
+     * Speaks [text] with [speaker]. [speed] is 1.0 for a normal pace. Stops anything already being said.
+     * If the natural voice fails for any reason, [onFailure] is called so the text can be read another way.
+     */
+    fun speak(text: String, speaker: Int, speed: Float, onFailure: () -> Unit = {}) {
         stop()
-        if (!isReady) return
+        if (!isReady) {
+            onFailure()
+            return
+        }
         stopRequested = false
         speakJob = scope.launch {
             _preparing.value = true
@@ -178,15 +193,20 @@ class NaturalVoices(private val context: Context) {
                     val tts = engine ?: load().also { engine = it }
                     val output = audioTrack(tts.sampleRate())
                     output.play()
-                    tts.generateWithCallback(text, speaker, speed) { samples ->
-                        _preparing.value = false
-                        if (stopRequested) {
-                            0
-                        } else {
-                            output.write(samples, 0, samples.size, AudioTrack.WRITE_BLOCKING)
-                            1
-                        }
-                    }
+                    tts.generateWithCallback(
+                        text,
+                        speaker,
+                        speed,
+                        AudioSink { samples ->
+                            _preparing.value = false
+                            if (stopRequested) {
+                                false
+                            } else {
+                                output.write(samples, 0, samples.size, AudioTrack.WRITE_BLOCKING)
+                                true
+                            }
+                        },
+                    )
                     // Stopping a streaming track lets the audio already written finish playing.
                     if (!stopRequested) output.stop()
                     idleJob = scope.launch {
@@ -194,8 +214,11 @@ class NaturalVoices(private val context: Context) {
                         release()
                     }
                 }
-            } catch (error: Exception) {
+            } catch (error: Throwable) {
+                // Native code can fail with an Error rather than an Exception, so everything is caught here.
+                if (error is kotlinx.coroutines.CancellationException) throw error
                 CrashReporter.record(context, error)
+                onFailure()
             } finally {
                 _preparing.value = false
             }

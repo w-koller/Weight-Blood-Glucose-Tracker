@@ -124,7 +124,6 @@ private fun AnswerCard(exchange: Exchange, onCheckIn: () -> Unit, onStop: () -> 
             }
             if (exchange.answer.isNotBlank()) {
                 Text(exchange.answer, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-                Text(stringResource(R.string.assistant_written_by_model), style = MaterialTheme.typography.bodySmall)
             }
             if (exchange.streaming) {
                 BigButton(stringResource(R.string.assistant_stop), onClick = onStop, icon = R.drawable.ic_stop_circle, style = ButtonStyle.SECONDARY)

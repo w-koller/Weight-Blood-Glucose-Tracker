@@ -23,7 +23,6 @@ STRINGS = {
     "assistant_ask": "Ask",
     "assistant_loading": "Loading the model.",
     "assistant_stop": "Stop generating",
-    "assistant_written_by_model": "Written by our language model from the figures above",
     "assistant_dose_title": "Your dose",
     "assistant_dose_answer": "Your insulin doses come from the sliding scale in your plan. Please use Check blood glucose to see the dose for your reading. If you have questions about your doses, please ask your doctor or diabetes educator.",
     "assistant_urgent_title": "If you feel very unwell",
