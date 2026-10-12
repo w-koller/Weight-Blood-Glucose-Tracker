@@ -1,0 +1,50 @@
+# Copy for backup and restore. See strings_core.py for the rules.
+STRINGS = {
+    "backup_title": "Backup and restore",
+    "backup_google_title": "Google backup",
+    "backup_google_body": "Your records are part of your phone’s backup to your Google account when that backup is turned on. When you set up a new phone from that backup and install this app, your records come back.",
+    "backup_google_settings": "Open the phone’s backup settings",
+
+    "backup_file_title": "Backup file",
+    "backup_last": "Last backup file saved on %1$s.",
+    "backup_never": "You have not saved a backup file yet.",
+    "backup_password_optional": "Password (optional)",
+    "backup_password_again": "Enter the password again",
+    "backup_password_note": "If you forget the password, the backup cannot be restored.",
+    "backup_private_note": "The file contains your health records. Please keep it somewhere private.",
+    "backup_password_short": "Please choose a password of at least 6 characters, or leave both boxes empty.",
+    "backup_password_mismatch": "The two passwords are different. Please enter the same password twice.",
+    "backup_save": "Save the backup file",
+    "backup_share": "Share the backup file",
+    "backup_share_title": "Share your backup file",
+    "backup_saved": "Your backup file has been saved.",
+    "backup_save_failed": "The backup file could not be saved. Please try again.",
+
+    "backup_restore_title": "Restore",
+    "backup_restore_from_file": "Restore from a backup file",
+    "backup_reading": "Reading the backup file.",
+    "backup_restoring": "Restoring your records.",
+    "backup_password_title": "This backup has a password",
+    "backup_password_label": "Password",
+    "backup_password_wrong_title": "Password incorrect",
+    "backup_password_wrong": "That password is incorrect, or the file is damaged. Please try again.",
+    "backup_open": "Open the backup",
+    "backup_confirm_title": "Restore this backup?",
+    "backup_confirm_summary": "This backup was saved on %1$s. It has %2$s, %3$s and %4$s.",
+    "backup_confirm_warning": "Restoring replaces all records on this phone with the records in the backup.",
+    "backup_restore": "Restore",
+    "backup_restored": "Your records have been restored.",
+    "backup_restore_failed": "Your records could not be restored. Your records on this phone have not changed.",
+    "backup_read_failed": "The backup file could not be read. Please try again.",
+    "backup_not_a_backup": "This file is not a backup from this app. Please choose a file whose name starts with weight-glucose-backup.",
+    "backup_newer_version": "This backup was made by a newer version of the app. Please update the app, then try again.",
+
+    "backup_reminder_toggle": "Remind me to save a backup every month",
+    "backup_reminder_title": "Please save a backup of your records",
+    "backup_reminder_body": "It has been a month since your last backup file. Please save one, so your records are safe if you lose or replace your phone.",
+}
+
+PLURALS = {
+    "backup_doses": {"one": "%1$d dose", "other": "%1$d doses"},
+    "backup_weights": {"one": "%1$d weight", "other": "%1$d weights"},
+}
