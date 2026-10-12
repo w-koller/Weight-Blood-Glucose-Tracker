@@ -113,6 +113,25 @@ class ReminderScheduler(
         )
     }
 
+    fun showBackupReminder() {
+        val body = context.getString(R.string.backup_reminder_body)
+        val intent = Intent(context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .putExtra(MainActivity.EXTRA_OPEN, MainActivity.OPEN_BACKUP)
+        val open = PendingIntent.getActivity(context, 500, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        notify(
+            BACKUP_NOTIFICATION,
+            NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_save)
+                .setContentTitle(context.getString(R.string.backup_reminder_title))
+                .setContentText(body)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+                .setContentIntent(open)
+                .setCategory(NotificationCompat.CATEGORY_REMINDER)
+                .setAutoCancel(true),
+        )
+    }
+
     fun cancelNotification(slot: Slot) = notifications.cancel(slot.ordinal)
 
     private fun notify(id: Int, builder: NotificationCompat.Builder) {
@@ -162,6 +181,7 @@ class ReminderScheduler(
         const val KIND_SNOOZE = "snooze"
         const val KIND_RECHECK = "recheck"
         private const val RECHECK_NOTIFICATION = 50
+        private const val BACKUP_NOTIFICATION = 60
         val SNOOZE: Duration = Duration.ofMinutes(15)
         private val WINDOW: Duration = Duration.ofMinutes(10)
     }

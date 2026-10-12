@@ -264,7 +264,7 @@ STRINGS = {
     "about_disclaimer_title": "About your doses",
     "about_disclaimer": "This app works out insulin doses from the sliding scale that you entered from your doctor\u2019s order. It does not give medical advice. Please speak with your doctor or diabetes educator if you have questions about your insulin.",
     "about_data_title": "Your records",
-    "about_data_body": "Your records are stored only on this phone. They are included in your phone\u2019s own backup if you have turned that on. You can share them with your doctor from Settings \u203a Export for your doctor. The app uses the internet only to download the assistant model.",
+    "about_data_body": "Your records are stored only on this phone. To keep them safe if you lose or replace your phone, please use Settings \u203a Backup and restore. You can share them with your doctor from Settings \u203a Export for your doctor. The app uses the internet only to download the assistant model and the natural voices.",
     "about_low_title": "Low and high readings",
     "about_low_body": "The advice shown for low and high readings is general information. Please ask your doctor or diabetes educator what you should do, and follow their advice if it is different.",
     "about_version_title": "Version",

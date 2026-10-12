@@ -15,6 +15,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import io.github.wkoller.glucosetracker.domain.model.Slot
 import io.github.wkoller.glucosetracker.ui.assistant.AssistantScreen
+import io.github.wkoller.glucosetracker.ui.backup.BackupScreen
 import io.github.wkoller.glucosetracker.ui.assistant.AssistantSettingsScreen
 import io.github.wkoller.glucosetracker.ui.checkin.CheckInScreen
 import io.github.wkoller.glucosetracker.ui.export.ExportScreen
@@ -62,6 +63,7 @@ object Routes {
     const val EXPORT = "settings/export"
     const val ABOUT = "settings/about"
     const val VOICE = "settings/voice"
+    const val BACKUP = "settings/backup"
 
     fun setup(mode: SetupMode) = "setup?mode=${mode.name}"
     fun checkIn(slot: Slot?, medicinesOnly: Boolean = false) = "checkin?slot=${slot?.name ?: ""}&medsOnly=$medicinesOnly"
@@ -71,11 +73,24 @@ object Routes {
 }
 
 @Composable
-fun AppNavHost(startWithSetup: Boolean, openSlot: Slot?, onSlotOpened: () -> Unit, navController: NavHostController = rememberNavController()) {
+fun AppNavHost(
+    startWithSetup: Boolean,
+    openSlot: Slot?,
+    onSlotOpened: () -> Unit,
+    openBackup: Boolean,
+    onBackupOpened: () -> Unit,
+    navController: NavHostController = rememberNavController(),
+) {
     LaunchedEffect(openSlot) {
         if (openSlot != null && !startWithSetup) {
             navController.navigate(Routes.checkIn(openSlot)) { launchSingleTop = true }
             onSlotOpened()
+        }
+    }
+    LaunchedEffect(openBackup) {
+        if (openBackup && !startWithSetup) {
+            navController.navigate(Routes.BACKUP) { launchSingleTop = true }
+            onBackupOpened()
         }
     }
     val goHome: () -> Unit = {
@@ -111,6 +126,7 @@ fun AppNavHost(startWithSetup: Boolean, openSlot: Slot?, onSlotOpened: () -> Uni
             val first = entry.arguments?.getString("mode") == SetupMode.FIRST.name
             PlanSetupScreen(
                 onClose = back,
+                onRestored = { navController.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } } },
                 onFinished = {
                     if (first) {
                         navController.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } }
@@ -161,12 +177,14 @@ fun AppNavHost(startWithSetup: Boolean, openSlot: Slot?, onSlotOpened: () -> Uni
                     reminders = { navController.navigate(Routes.REMINDERS) },
                     assistant = { navController.navigate(Routes.ASSISTANT_SETTINGS) },
                     export = { navController.navigate(Routes.EXPORT) },
+                    backup = { navController.navigate(Routes.BACKUP) },
                     about = { navController.navigate(Routes.ABOUT) },
                 ),
             )
         }
         composable(Routes.DISPLAY) { DisplaySettingsScreen(onBack = back, onChooseVoice = { navController.navigate(Routes.VOICE) }) }
         composable(Routes.VOICE) { VoiceScreen(onBack = back) }
+        composable(Routes.BACKUP) { BackupScreen(onBack = back) }
         composable(Routes.PLAN) {
             PlanScreen(
                 onBack = back,

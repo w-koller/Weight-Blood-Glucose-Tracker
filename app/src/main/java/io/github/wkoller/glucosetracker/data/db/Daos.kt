@@ -56,6 +56,67 @@ interface PlanDao {
     }
 }
 
+/** Every row in the database, as saved in a backup file. */
+data class BackupContents(
+    val plans: List<PlanEntity>,
+    val bands: List<ScaleBandEntity>,
+    val slots: List<PlanSlotEntity>,
+    val medicines: List<PlanMedicineEntity>,
+    val readings: List<GlucoseReadingEntity>,
+    val doses: List<DoseLogEntity>,
+    val measurements: List<BodyMeasurementEntity>,
+)
+
+@Dao
+interface BackupDao {
+    @Query("SELECT * FROM plans") suspend fun plans(): List<PlanEntity>
+    @Query("SELECT * FROM scale_bands") suspend fun bands(): List<ScaleBandEntity>
+    @Query("SELECT * FROM plan_slots") suspend fun slots(): List<PlanSlotEntity>
+    @Query("SELECT * FROM plan_medicines") suspend fun medicines(): List<PlanMedicineEntity>
+    @Query("SELECT * FROM glucose_readings") suspend fun readings(): List<GlucoseReadingEntity>
+    @Query("SELECT * FROM dose_log") suspend fun doses(): List<DoseLogEntity>
+    @Query("SELECT * FROM body_measurements") suspend fun measurements(): List<BodyMeasurementEntity>
+
+    @Query("DELETE FROM scale_bands") suspend fun clearBands()
+    @Query("DELETE FROM plan_slots") suspend fun clearSlots()
+    @Query("DELETE FROM plan_medicines") suspend fun clearMedicines()
+    @Query("DELETE FROM plans") suspend fun clearPlans()
+    @Query("DELETE FROM glucose_readings") suspend fun clearReadings()
+    @Query("DELETE FROM dose_log") suspend fun clearDoses()
+    @Query("DELETE FROM body_measurements") suspend fun clearMeasurements()
+
+    @Insert suspend fun insertPlans(rows: List<PlanEntity>)
+    @Insert suspend fun insertBands(rows: List<ScaleBandEntity>)
+    @Insert suspend fun insertSlots(rows: List<PlanSlotEntity>)
+    @Insert suspend fun insertMedicines(rows: List<PlanMedicineEntity>)
+    @Insert suspend fun insertReadings(rows: List<GlucoseReadingEntity>)
+    @Insert suspend fun insertDoses(rows: List<DoseLogEntity>)
+    @Insert suspend fun insertMeasurements(rows: List<BodyMeasurementEntity>)
+
+    @Transaction
+    suspend fun everything(): BackupContents =
+        BackupContents(plans(), bands(), slots(), medicines(), readings(), doses(), measurements())
+
+    /** Replaces every row, keeping the original ids. If anything fails, the old rows stay. */
+    @Transaction
+    suspend fun replaceAll(contents: BackupContents) {
+        clearBands()
+        clearSlots()
+        clearMedicines()
+        clearReadings()
+        clearDoses()
+        clearMeasurements()
+        clearPlans()
+        insertPlans(contents.plans)
+        insertBands(contents.bands)
+        insertSlots(contents.slots)
+        insertMedicines(contents.medicines)
+        insertReadings(contents.readings)
+        insertDoses(contents.doses)
+        insertMeasurements(contents.measurements)
+    }
+}
+
 @Dao
 interface RecordDao {
     @Query("SELECT * FROM glucose_readings WHERE date BETWEEN :from AND :to ORDER BY takenAt")

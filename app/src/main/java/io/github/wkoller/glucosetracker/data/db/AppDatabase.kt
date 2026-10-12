@@ -21,6 +21,7 @@ import androidx.room.RoomDatabase
 abstract class AppDatabase : RoomDatabase() {
     abstract fun planDao(): PlanDao
     abstract fun recordDao(): RecordDao
+    abstract fun backupDao(): BackupDao
 
     companion object {
         const val NAME = "tracker.db"

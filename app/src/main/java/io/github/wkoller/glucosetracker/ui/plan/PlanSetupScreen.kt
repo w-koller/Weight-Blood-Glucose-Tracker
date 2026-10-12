@@ -15,6 +15,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.wkoller.glucosetracker.R
 import io.github.wkoller.glucosetracker.ui.appContainer
 import io.github.wkoller.glucosetracker.ui.appViewModel
+import io.github.wkoller.glucosetracker.ui.backup.rememberRestoreFlow
 import io.github.wkoller.glucosetracker.ui.components.BigButton
 import io.github.wkoller.glucosetracker.ui.components.ButtonStyle
 import io.github.wkoller.glucosetracker.ui.components.ConfirmDialog
@@ -24,9 +25,10 @@ import io.github.wkoller.glucosetracker.ai.ModelManager
 import io.github.wkoller.glucosetracker.tts.NaturalVoices
 
 @Composable
-fun PlanSetupScreen(onClose: () -> Unit, onFinished: () -> Unit) {
+fun PlanSetupScreen(onClose: () -> Unit, onFinished: () -> Unit, onRestored: () -> Unit = onFinished) {
     val vm = appViewModel { container, handle -> PlanSetupViewModel(container, handle) }
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val restore = rememberRestoreFlow(onRestored)
 
     LaunchedEffect(ui.finished) { if (ui.finished) onFinished() }
     BackHandler { if (!vm.back()) onClose() }
@@ -121,7 +123,7 @@ fun PlanSetupScreen(onClose: () -> Unit, onFinished: () -> Unit) {
         },
     ) {
         when (ui.step) {
-            SetupStep.WELCOME -> WelcomeStep()
+            SetupStep.WELCOME -> WelcomeStep(onRestore = restore)
             SetupStep.ABOUT_YOU -> AboutYouStep(ui, vm)
             SetupStep.ASSISTANT -> AssistantStep(ui)
             SetupStep.VOICES -> VoicesStep(ui)

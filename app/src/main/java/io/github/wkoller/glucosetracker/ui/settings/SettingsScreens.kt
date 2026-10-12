@@ -42,6 +42,7 @@ data class SettingsActions(
     val reminders: () -> Unit,
     val assistant: () -> Unit,
     val export: () -> Unit,
+    val backup: () -> Unit,
     val about: () -> Unit,
 )
 
@@ -53,6 +54,7 @@ fun SettingsScreen(onBack: () -> Unit, actions: SettingsActions) {
         BigButton(stringResource(R.string.settings_reminders), onClick = actions.reminders, icon = R.drawable.ic_notifications, style = ButtonStyle.SECONDARY)
         BigButton(stringResource(R.string.settings_assistant), onClick = actions.assistant, icon = R.drawable.ic_forum, style = ButtonStyle.SECONDARY)
         BigButton(stringResource(R.string.settings_export), onClick = actions.export, icon = R.drawable.ic_share, helper = stringResource(R.string.settings_export_helper), style = ButtonStyle.SECONDARY)
+        BigButton(stringResource(R.string.backup_title), onClick = actions.backup, icon = R.drawable.ic_save, style = ButtonStyle.SECONDARY)
         BigButton(stringResource(R.string.settings_about), onClick = actions.about, icon = R.drawable.ic_info, helper = stringResource(R.string.settings_about_helper), style = ButtonStyle.SECONDARY)
     }
 }

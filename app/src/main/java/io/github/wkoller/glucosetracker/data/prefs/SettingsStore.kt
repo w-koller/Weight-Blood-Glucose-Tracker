@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -36,6 +37,10 @@ data class Settings(
     val familyName: String = "",
     /** The chosen voice, as written by VoiceChoice.encode(). Empty means the phone's default voice. */
     val voice: String = "",
+    /** When a backup file was last saved or shared, in epoch milliseconds, or 0 if never. */
+    val lastBackupAt: Long = 0,
+    val backupReminderOn: Boolean = true,
+    val lastBackupReminderAt: Long = 0,
 ) {
     val hasPin: Boolean get() = pinHash != null && pinSalt != null
 
@@ -66,6 +71,9 @@ class SettingsStore(private val context: Context) {
         val firstName = stringPreferencesKey("first_name")
         val familyName = stringPreferencesKey("family_name")
         val voice = stringPreferencesKey("voice")
+        val lastBackupAt = longPreferencesKey("last_backup_at")
+        val backupReminderOn = booleanPreferencesKey("backup_reminder_on")
+        val lastBackupReminderAt = longPreferencesKey("last_backup_reminder_at")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { it.toSettings() }
@@ -97,6 +105,9 @@ class SettingsStore(private val context: Context) {
             firstName = this[Keys.firstName] ?: defaults.firstName,
             familyName = this[Keys.familyName] ?: defaults.familyName,
             voice = this[Keys.voice] ?: defaults.voice,
+            lastBackupAt = this[Keys.lastBackupAt] ?: defaults.lastBackupAt,
+            backupReminderOn = this[Keys.backupReminderOn] ?: defaults.backupReminderOn,
+            lastBackupReminderAt = this[Keys.lastBackupReminderAt] ?: defaults.lastBackupReminderAt,
         )
     }
 
@@ -124,5 +135,8 @@ class SettingsStore(private val context: Context) {
         this[Keys.firstName] = s.firstName.trim()
         this[Keys.familyName] = s.familyName.trim()
         this[Keys.voice] = s.voice
+        this[Keys.lastBackupAt] = s.lastBackupAt
+        this[Keys.backupReminderOn] = s.backupReminderOn
+        this[Keys.lastBackupReminderAt] = s.lastBackupReminderAt
     }
 }

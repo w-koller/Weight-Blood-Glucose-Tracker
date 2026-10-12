@@ -11,6 +11,7 @@ Weight & Glucose Tracker is an Android app that records weight, waist measuremen
 - **Logbook and progress.** A calendar shows each day in green when everything was recorded, yellow when some of it was, and red when nothing was. Records can be viewed by day, changed or deleted, and shown as charts.
 - **Reminders.** A reminder arrives at each check time, unless that check has already been recorded.
 - **Export for the doctor.** A PDF report or a spreadsheet (CSV) can be shared by email or another app.
+- **Backup and restore.** Records are part of the phone's Google backup when it is turned on. A backup file, with an optional password, can be saved to the phone or to cloud storage such as Google Drive, or shared. A new phone can restore from it on the first screen. A monthly reminder suggests saving a fresh backup file.
 - **Optional assistant.** Gemma 4, a language model that runs on the phone, can summarise records and answer questions about them. It does not give medical advice or work out doses.
 - **Your name.** An optional first and family name personalises the greeting and appears on reports for the doctor.
 - **Display and accessibility.** Five text sizes from Small to Largest, maximum contrast, a dark theme, simple mode, read-aloud results with a sample of each speed, and options to hide icons or extra explanations.
@@ -39,7 +40,7 @@ The first setup asks whether to download the assistant, and you can also set it 
 
 ## Your records
 
-Records are stored only on the phone. They are included in the phone's own backup if that is turned on. You can share them from **Settings › Export for your doctor**.
+Records are stored only on the phone. To keep them safe if you lose or replace your phone, please use **Settings › Backup and restore**. They are also included in the phone's own Google backup if that is turned on. You can share them with your doctor from **Settings › Export for your doctor**.
 
 ## For developers
 

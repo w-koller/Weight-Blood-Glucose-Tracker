@@ -127,7 +127,7 @@ fun draftErrorText(error: DraftError, draft: PlanDraft? = null): String = when (
 }
 
 @Composable
-fun ColumnScope.WelcomeStep() {
+fun ColumnScope.WelcomeStep(onRestore: () -> Unit) {
     val container = appContainer()
     val settings by container.settingsStore.settings.collectAsStateWithLifecycle(AppSettings())
     val scope = rememberCoroutineScope()
@@ -158,6 +158,7 @@ fun ColumnScope.WelcomeStep() {
         OptionRow(title, null, selectedTheme == index, { scope.launch { container.settingsStore.update(apply) } })
     }
     NoticeCard(NoticeKind.INFO, stringResource(R.string.about_disclaimer_title), stringResource(R.string.about_disclaimer))
+    BigButton(stringResource(R.string.backup_restore_from_file), onClick = onRestore, icon = R.drawable.ic_restore, style = ButtonStyle.SECONDARY)
 }
 
 @Composable

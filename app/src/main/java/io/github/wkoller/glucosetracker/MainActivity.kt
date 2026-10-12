@@ -24,11 +24,17 @@ class MainActivity : ComponentActivity() {
     /** A check-in a reminder asked to open. */
     private val openSlot = mutableStateOf<Slot?>(null)
 
+    /** True when the backup reminder asked to open Backup and restore. */
+    private val openBackup = mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         val container = (application as TrackerApp).container
-        if (savedInstanceState == null) openSlot.value = slotFrom(intent)
+        if (savedInstanceState == null) {
+            openSlot.value = slotFrom(intent)
+            openBackup.value = intent?.getStringExtra(EXTRA_OPEN) == OPEN_BACKUP
+        }
         setContent {
             val settings by container.settingsStore.settings.collectAsStateWithLifecycle(initialValue = null)
             val loaded = settings ?: return@setContent
@@ -41,6 +47,8 @@ class MainActivity : ComponentActivity() {
                             startWithSetup = startWithSetup,
                             openSlot = openSlot.value,
                             onSlotOpened = { openSlot.value = null },
+                            openBackup = openBackup.value,
+                            onBackupOpened = { openBackup.value = false },
                         )
                     }
                 }
@@ -51,6 +59,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         slotFrom(intent)?.let { openSlot.value = it }
+        if (intent.getStringExtra(EXTRA_OPEN) == OPEN_BACKUP) openBackup.value = true
     }
 
     override fun onStop() {
@@ -63,5 +72,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_SLOT = "io.github.wkoller.glucosetracker.SLOT"
+        const val EXTRA_OPEN = "io.github.wkoller.glucosetracker.OPEN"
+        const val OPEN_BACKUP = "backup"
     }
 }

@@ -30,6 +30,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -121,6 +123,7 @@ fun LabeledField(
     error: String? = null,
     numeric: Boolean = false,
     singleLine: Boolean = true,
+    password: Boolean = false,
 ) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, style = MaterialTheme.typography.titleMedium)
@@ -133,9 +136,14 @@ fun LabeledField(
             suffix = suffix?.let { { Text(it, style = MaterialTheme.typography.titleMedium) } },
             isError = error != null,
             keyboardOptions = KeyboardOptions(
-                keyboardType = if (numeric) KeyboardType.Decimal else KeyboardType.Text,
+                keyboardType = when {
+                    password -> KeyboardType.Password
+                    numeric -> KeyboardType.Decimal
+                    else -> KeyboardType.Text
+                },
                 imeAction = ImeAction.Next,
             ),
+            visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
             modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
         )
         if (error != null) {
@@ -175,6 +183,29 @@ fun ConfirmDialog(
                 messages.forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
                 BigButton(confirmText, onClick = onConfirm)
                 BigButton(dismissText, onClick = onDismiss, style = ButtonStyle.SECONDARY)
+            }
+        }
+    }
+}
+
+/** A message with a single button to close it, for results such as "Your records have been restored." */
+@Composable
+fun MessageDialog(title: String, message: String, buttonText: String, onClose: () -> Unit, busy: Boolean = false) {
+    Dialog(onDismissRequest = { if (!busy) onClose() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+        ) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text(title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
+                Text(message, style = MaterialTheme.typography.bodyLarge)
+                if (busy) {
+                    androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                } else {
+                    BigButton(buttonText, onClick = onClose)
+                }
             }
         }
     }

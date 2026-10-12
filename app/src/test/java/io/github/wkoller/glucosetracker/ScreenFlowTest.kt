@@ -405,6 +405,15 @@ class ScreenFlowTest {
     }
 
     @Test
+    fun `backup and restore offers the phone backup, a backup file and restore`() {
+        show { io.github.wkoller.glucosetracker.ui.backup.BackupScreen(onBack = {}) }
+        waitFor("Google backup")
+        waitFor("You have not saved a backup file yet.")
+        waitFor("Restore from a backup file")
+        shot("backup_01")
+    }
+
+    @Test
     fun `home shows the next step and today`() {
         seedPlan()
         runBlocking {
