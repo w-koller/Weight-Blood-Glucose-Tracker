@@ -29,8 +29,10 @@ secrets are set. The release keystore lives at `~/.android-keys/` and must never
 ## Layout
 
 - `domain/`: all dose and schedule rules, with no Android code. `SlidingScale`, `DoseAdvisor`,
-  `OverrideCheck`, `SlotResolver`, `NextStepEngine`, `ProgressCalculator`, `GlucoseStats`, `LowPatterns`,
+  `OverrideCheck`, `SlotResolver`, `NextStepEngine`, `ProgressCalculator`, `GlucoseStats`, `ProgressModel`, `LowPatterns`,
   `DailyLog`, `AssistantGuard` and `PromptBuilder`. Every rule change needs a test here.
+  `ProgressModel` is the one source for the Progress screen's charts, what TalkBack reads for each day,
+  the PDF report's summary and chart, the readout, and the facts given to the assistant.
 - `app/data`: Room (versioned plans and records) and DataStore settings.
 - `app/ui`: Compose screens. `ui/components` holds the shared senior-friendly building blocks.
 - `app/reminders`, `app/export`, `app/ai`: alarms, CSV/PDF export, model download and inference.

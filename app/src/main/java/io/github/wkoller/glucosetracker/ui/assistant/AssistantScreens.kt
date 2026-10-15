@@ -33,6 +33,7 @@ import io.github.wkoller.glucosetracker.ai.ModelManager
 import io.github.wkoller.glucosetracker.ai.ModelState
 import io.github.wkoller.glucosetracker.data.prefs.Settings
 import io.github.wkoller.glucosetracker.domain.readout.ReadoutPeriod
+import io.github.wkoller.glucosetracker.ui.UiFormat
 import io.github.wkoller.glucosetracker.ui.appContainer
 import io.github.wkoller.glucosetracker.ui.appViewModel
 import io.github.wkoller.glucosetracker.ui.components.BigButton
@@ -51,33 +52,43 @@ import io.github.wkoller.glucosetracker.ui.components.rememberMobileDataSwitch
 import kotlinx.coroutines.launch
 import java.util.Locale
 
+/** [progressDays] is set when the assistant is opened from the Progress screen, to talk about those days. */
 @Composable
-fun AssistantScreen(onBack: () -> Unit, onSetUp: () -> Unit, onCheckIn: () -> Unit) {
-    val vm = appViewModel { container, _ -> AssistantViewModel(container) }
+fun AssistantScreen(onBack: () -> Unit, onSetUp: () -> Unit, onCheckIn: () -> Unit, progressDays: Int? = null) {
+    val vm = appViewModel { container, _ -> AssistantViewModel(container, progressDays) }
     val ui by vm.ui.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     ScreenScaffold(title = stringResource(R.string.assistant_title), onBack = onBack) {
 
         val facts = ui.context?.facts(ui.period)
-        SectionCard(stringResource(R.string.assistant_readout_title)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                OptionRow(stringResource(R.string.assistant_today), null, ui.period == ReadoutPeriod.TODAY, { vm.setPeriod(ReadoutPeriod.TODAY) }, modifier = Modifier.weight(1f))
-                OptionRow(stringResource(R.string.assistant_week), null, ui.period == ReadoutPeriod.WEEK, { vm.setPeriod(ReadoutPeriod.WEEK) }, modifier = Modifier.weight(1f))
+        val days = ui.progressDays
+        if (days != null) {
+            SectionCard(stringResource(R.string.assistant_period_title, days)) {
+                val progress = ui.context?.progress
+                if (progress == null) {
+                    Text(stringResource(R.string.assistant_no_plan), style = MaterialTheme.typography.bodyLarge)
+                } else {
+                    Text(
+                        stringResource(R.string.assistant_period_body, UiFormat.dayLong(progress.from), UiFormat.dayLong(progress.to)),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    if (ui.modelReady) SummaryAnswer(ui.summary, onSummarise = vm::summarise, onCheckIn = onCheckIn, onStop = vm::stop)
+                }
             }
-            if (facts == null) {
-                Text(stringResource(R.string.assistant_no_plan), style = MaterialTheme.typography.bodyLarge)
-            } else {
-                val sentences = ReadoutText.sentences(context, facts)
-                sentences.forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
-                SpeakButton(sentences.joinToString(" "))
-                if (ui.modelReady) {
-                    val summary = ui.summary
-                    if (summary == null) {
-                        BigButton(stringResource(R.string.assistant_summarise), onClick = vm::summarise, icon = R.drawable.ic_forum, style = ButtonStyle.SECONDARY)
-                    } else {
-                        AnswerCard(summary, onCheckIn, onStop = vm::stop)
-                    }
+        } else {
+            SectionCard(stringResource(R.string.assistant_readout_title)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    OptionRow(stringResource(R.string.assistant_today), null, ui.period == ReadoutPeriod.TODAY, { vm.setPeriod(ReadoutPeriod.TODAY) }, modifier = Modifier.weight(1f))
+                    OptionRow(stringResource(R.string.assistant_week), null, ui.period == ReadoutPeriod.WEEK, { vm.setPeriod(ReadoutPeriod.WEEK) }, modifier = Modifier.weight(1f))
+                }
+                if (facts == null) {
+                    Text(stringResource(R.string.assistant_no_plan), style = MaterialTheme.typography.bodyLarge)
+                } else {
+                    val sentences = ReadoutText.sentences(context, facts)
+                    sentences.forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
+                    SpeakButton(sentences.joinToString(" "))
+                    if (ui.modelReady) SummaryAnswer(ui.summary, onSummarise = vm::summarise, onCheckIn = onCheckIn, onStop = vm::stop)
                 }
             }
         }
@@ -90,7 +101,7 @@ fun AssistantScreen(onBack: () -> Unit, onSetUp: () -> Unit, onCheckIn: () -> Un
         }
 
         SectionCard(stringResource(R.string.assistant_questions_title)) {
-            listOf(R.string.assistant_suggest_week, R.string.assistant_suggest_highest, R.string.assistant_suggest_weight, R.string.assistant_suggest_bgl)
+            (if (days != null) PERIOD_SUGGESTIONS else SUGGESTIONS)
                 .forEach { res ->
                     val text = stringResource(res)
                     BigButton(text, onClick = { vm.ask(text) }, style = ButtonStyle.SECONDARY, enabled = !ui.busy)
@@ -104,6 +115,26 @@ fun AssistantScreen(onBack: () -> Unit, onSetUp: () -> Unit, onCheckIn: () -> Un
             }
         }
         QuestionBox(ui.question, vm::setQuestion, onAsk = { vm.ask() }, busy = ui.busy)
+    }
+}
+
+/** Questions for the usual today-and-this-week view. */
+private val SUGGESTIONS = listOf(R.string.assistant_suggest_week, R.string.assistant_suggest_highest, R.string.assistant_suggest_weight, R.string.assistant_suggest_bgl)
+
+/** Questions about trends, for a period opened from the Progress screen. */
+val PERIOD_SUGGESTIONS = listOf(
+    R.string.assistant_suggest_period,
+    R.string.assistant_suggest_slot_highest,
+    R.string.assistant_suggest_lows,
+    R.string.assistant_suggest_weight_change,
+)
+
+@Composable
+private fun SummaryAnswer(summary: Exchange?, onSummarise: () -> Unit, onCheckIn: () -> Unit, onStop: () -> Unit) {
+    if (summary == null) {
+        BigButton(stringResource(R.string.assistant_summarise), onClick = onSummarise, icon = R.drawable.ic_forum, style = ButtonStyle.SECONDARY)
+    } else {
+        AnswerCard(summary, onCheckIn, onStop = onStop)
     }
 }
 

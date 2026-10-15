@@ -87,10 +87,10 @@ fun SectionCard(
     }
 }
 
-/** A label and value on one line, wrapping onto two lines when the text is large. */
+/** A label and value on one line, wrapping onto two lines when the text is large. TalkBack reads them together. */
 @Composable
 fun FactRow(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth()) {
+    Column(modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
         Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.titleMedium)
     }

@@ -14,6 +14,8 @@ import io.github.wkoller.glucosetracker.domain.model.DoseRecord
 import io.github.wkoller.glucosetracker.domain.model.GlucoseReading
 import io.github.wkoller.glucosetracker.domain.model.Plan
 import io.github.wkoller.glucosetracker.domain.model.SlotNaming
+import io.github.wkoller.glucosetracker.domain.progress.ProgressModel
+import io.github.wkoller.glucosetracker.domain.progress.ProgressModelBuilder
 import io.github.wkoller.glucosetracker.domain.readout.ReadoutBuilder
 import io.github.wkoller.glucosetracker.domain.readout.ReadoutFacts
 import io.github.wkoller.glucosetracker.domain.readout.ReadoutPeriod
@@ -24,16 +26,22 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.takeWhile
 import java.time.LocalDate
 
-/** Everything the assistant knows about, gathered fresh for each request. */
+/**
+ * Everything the assistant knows about, gathered fresh for each request. [progress] is the period the
+ * model is told about: the last 7 days, or the period chosen on the Progress screen when
+ * [progressDays] is set.
+ */
 data class AssistantContext(
     val plan: Plan,
     val today: LocalDate,
     val todayFacts: ReadoutFacts,
     val weekFacts: ReadoutFacts,
+    val progress: ProgressModel,
     val readings: List<GlucoseReading>,
     val doses: List<DoseRecord>,
     val firstName: String? = null,
     val slotNaming: SlotNaming = SlotNaming.MEALS,
+    val progressDays: Int? = null,
 ) {
     fun facts(period: ReadoutPeriod) = if (period == ReadoutPeriod.TODAY) todayFacts else weekFacts
 }
@@ -65,10 +73,13 @@ class AssistantService(
     @Volatile
     private var current: Conversation? = null
 
-    suspend fun context(): AssistantContext? {
+    /** [progressDays] is the period chosen on the Progress screen, or null for the last 7 days. */
+    suspend fun context(progressDays: Int? = null): AssistantContext? {
         val plan = repository.currentPlan() ?: return null
         val today = repository.logicalToday(plan)
-        val from = today.minusDays(13)
+        val days = progressDays ?: ReadoutPeriod.WEEK.days.toInt()
+        // Daily lines always cover the last 14 days, even when the period is shorter.
+        val from = today.minusDays(maxOf(13L, days - 1L))
         val readings = repository.readingsBetween(from, today)
         val doses = repository.dosesBetween(from, today)
         val measurements = repository.allMeasurements()
@@ -78,15 +89,18 @@ class AssistantService(
             today = today,
             todayFacts = ReadoutBuilder.build(ReadoutPeriod.TODAY, plan, today, readings, doses, measurements),
             weekFacts = ReadoutBuilder.build(ReadoutPeriod.WEEK, plan, today, readings, doses, measurements),
+            progress = ProgressModelBuilder.build(plan, today.minusDays(days - 1L), today, readings, doses, measurements),
             readings = readings,
             doses = doses,
             firstName = current.firstName.ifBlank { null },
             slotNaming = current.slotNaming,
+            progressDays = progressDays,
         )
     }
 
-    fun summarise(context: AssistantContext, period: ReadoutPeriod): Flow<AssistantReply> =
-        generate(context, PromptBuilder.summaryRequest(context.facts(period)), history = emptyList())
+    /** Summarises [days] days ending today: 1 for today, 7 for the week, or the Progress screen's period. */
+    fun summarise(context: AssistantContext, days: Int): Flow<AssistantReply> =
+        generate(context, PromptBuilder.summaryRequest(days), history = emptyList())
 
     fun ask(context: AssistantContext, question: String, history: List<Pair<String, String>>): Flow<AssistantReply> {
         val names = listOf(context.plan.correctionInsulin) + context.plan.medicines.map { it.name }
@@ -106,8 +120,8 @@ class AssistantService(
     private fun generate(context: AssistantContext, prompt: String, history: List<Pair<String, String>>): Flow<AssistantReply> = channelFlow {
         if (!models.isLoaded) send(AssistantReply.Loading)
         val system = PromptBuilder.systemPrompt(context.plan, context.firstName) + "\n\n" +
-            PromptBuilder.factsBlock(context.plan, context.weekFacts, context.today, context.readings, context.doses, context.slotNaming)
-        val allowed = PromptBuilder.allowedAmounts(context.plan, context.doses)
+            PromptBuilder.factsBlock(context.plan, context.progress, context.today, context.readings, context.doses, context.slotNaming)
+        val allowed = PromptBuilder.allowedAmounts(context.plan, context.doses, context.progress.doses)
         try {
             models.withEngine { engine ->
                 val earlier = history.takeLast(MAX_HISTORY).flatMap { (q, a) -> listOf(Message.user(q), Message.model(a)) }

@@ -11,7 +11,6 @@ import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
 import io.github.wkoller.glucosetracker.R
-import io.github.wkoller.glucosetracker.domain.dosing.DoseAdvisor
 import io.github.wkoller.glucosetracker.domain.dosing.GlucoseStatus
 import io.github.wkoller.glucosetracker.domain.format.Measures
 import io.github.wkoller.glucosetracker.domain.model.DoseKind
@@ -21,14 +20,16 @@ import io.github.wkoller.glucosetracker.domain.model.MeterFlag
 import io.github.wkoller.glucosetracker.domain.model.Plan
 import io.github.wkoller.glucosetracker.domain.model.Slot
 import io.github.wkoller.glucosetracker.domain.model.SlotNaming
-import io.github.wkoller.glucosetracker.domain.progress.GlucoseStats
-import io.github.wkoller.glucosetracker.domain.progress.ProgressCalculator
+import io.github.wkoller.glucosetracker.domain.progress.ProgressModelBuilder
+import io.github.wkoller.glucosetracker.domain.progress.TrendSeries
 import io.github.wkoller.glucosetracker.domain.records.DayLog
 import io.github.wkoller.glucosetracker.domain.records.SlotEntry
 import io.github.wkoller.glucosetracker.ui.UiFormat
+import io.github.wkoller.glucosetracker.ui.components.PointShape
 import io.github.wkoller.glucosetracker.ui.components.labelRes
 import io.github.wkoller.glucosetracker.ui.components.nameRes
 import io.github.wkoller.glucosetracker.ui.components.phraseRes
+import io.github.wkoller.glucosetracker.ui.components.pointShape
 import java.io.File
 import java.time.LocalDate
 import kotlin.math.max
@@ -52,6 +53,7 @@ private class PdfSink(private val document: PdfDocument) : PageSink {
 }
 
 private const val CHART_HEIGHT = 170f
+private const val POINT_RADIUS = 2.6f
 
 /** A printable A4 report for the doctor: the plan, a summary, a glucose chart and the daily records. */
 class PdfReportWriter(private val context: Context, private val naming: SlotNaming = SlotNaming.MEALS) {
@@ -68,6 +70,7 @@ class PdfReportWriter(private val context: Context, private val naming: SlotNami
         val readings = days.flatMap { day -> day.slots.flatMap { it.readings } }
         val doses = days.flatMap { day -> day.slots.flatMap { it.doses } }
         val measurements = days.flatMap { it.measurements }
+        val model = ProgressModelBuilder.build(plan, from, to, readings, doses, measurements)
 
         writer.text(context.getString(R.string.report_title), writer.title)
         patientName?.let { writer.text(context.getString(R.string.report_prepared_for, it), writer.heading) }
@@ -109,7 +112,7 @@ class PdfReportWriter(private val context: Context, private val naming: SlotNami
         writer.gap()
 
         writer.text(context.getString(R.string.report_summary_heading), writer.heading)
-        val glucose = GlucoseStats.summarise(readings, plan.targets)
+        val glucose = model.glucose
         if (glucose.count == 0) {
             writer.text(context.getString(R.string.progress_no_readings), writer.body)
         } else {
@@ -122,13 +125,13 @@ class PdfReportWriter(private val context: Context, private val naming: SlotNami
                 )
             }
         }
-        val weight = ProgressCalculator.weight(plan.goals, measurements)
+        val weight = model.weight
         weight.current?.let { current ->
             val start = weight.start?.let { Measures.formatKg(it) } ?: context.getString(R.string.not_set)
             val goal = weight.goal?.let { Measures.formatKg(it) } ?: context.getString(R.string.not_set)
             writer.text(context.getString(R.string.report_weight, Measures.formatKg(current), start, goal), writer.body)
         }
-        GlucoseStats.summariseDoses(doses).forEach { summary ->
+        model.doses.forEach { summary ->
             val given = UiFormat.times(context, summary.givenCount)
             val skipped = UiFormat.times(context, summary.skippedCount)
             val text = if (summary.medicineKind == MedicineKind.INSULIN) {
@@ -138,14 +141,12 @@ class PdfReportWriter(private val context: Context, private val naming: SlotNami
             }
             writer.text(text, writer.body)
         }
-        if (readings.size >= 2) {
+        if (model.glucoseSeries.points.size >= 2) {
             writer.gap()
             // Keeps the heading on the same page as its chart.
             writer.keepTogether(CHART_HEIGHT + 60f)
             writer.text(context.getString(R.string.report_chart_heading), writer.heading)
-            writer.chart(readings.map { it.takenAt.toEpochMilli() to it.tenths / 10f }, plan, from, to) { tenths ->
-                DoseAdvisor.statusOf((tenths * 10).toInt(), null, plan.targets)
-            }
+            writer.chart(model.glucoseSeries, from, to)
             writer.text(context.getString(R.string.report_chart_key), writer.small)
         }
         writer.gap()
@@ -304,7 +305,7 @@ class PdfReportWriter(private val context: Context, private val naming: SlotNami
             y += 6f
         }
 
-        fun chart(points: List<Pair<Long, Float>>, plan: Plan, from: LocalDate, to: LocalDate, status: (Float) -> GlucoseStatus) {
+        fun chart(series: TrendSeries, from: LocalDate, to: LocalDate) {
             val chartHeight = CHART_HEIGHT
             ensure(chartHeight + 20f)
             val left = margin + 24f
@@ -314,11 +315,13 @@ class PdfReportWriter(private val context: Context, private val naming: SlotNami
             val zone = java.time.ZoneId.systemDefault()
             val xMin = from.atStartOfDay(zone).toInstant().toEpochMilli()
             val xMax = to.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-            val yMax = max(points.maxOf { it.second }, plan.targets.highTenths / 10f) + 2f
+            val yMax = max(series.points.maxOf { it.value }, series.targetHigh ?: 0) / 10f + 2f
             fun xOf(x: Long) = left + (right - left) * ((x - xMin).toFloat() / (xMax - xMin))
             fun yOf(v: Float) = bottomY - (bottomY - top) * (v / yMax)
             val band = Paint().apply { color = Color.argb(40, 11, 87, 208) }
-            canvas.drawRect(left, yOf(plan.targets.highTenths / 10f), right, yOf(plan.targets.lowTenths / 10f), band)
+            val targetLow = series.targetLow
+            val targetHigh = series.targetHigh
+            if (targetLow != null && targetHigh != null) canvas.drawRect(left, yOf(targetHigh / 10f), right, yOf(targetLow / 10f), band)
             val axis = Paint().apply { color = Color.rgb(90, 90, 90); strokeWidth = 0.8f }
             canvas.drawLine(left, top, left, bottomY, axis)
             canvas.drawLine(left, bottomY, right, bottomY, axis)
@@ -330,21 +333,40 @@ class PdfReportWriter(private val context: Context, private val naming: SlotNami
             }
             line.alpha = 255
             val low = Paint().apply { color = Color.rgb(164, 22, 26); strokeWidth = 1f; pathEffect = DashPathEffect(floatArrayOf(5f, 4f), 0f) }
-            canvas.drawLine(left, yOf(plan.targets.hypoTenths / 10f), right, yOf(plan.targets.hypoTenths / 10f), low)
-            points.forEach { (x, v) ->
+            series.lowLine?.let { canvas.drawLine(left, yOf(it / 10f), right, yOf(it / 10f), low) }
+            series.points.forEach { point ->
                 val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = when (status(v)) {
+                    color = when (point.status) {
                         GlucoseStatus.LOW -> Color.rgb(164, 22, 26)
-                        GlucoseStatus.IN_TARGET -> Color.rgb(11, 87, 208)
-                        else -> Color.rgb(138, 67, 0)
+                        GlucoseStatus.IN_TARGET, null -> Color.rgb(11, 87, 208)
+                        GlucoseStatus.BELOW_TARGET, GlucoseStatus.ABOVE_TARGET -> Color.rgb(138, 67, 0)
                     }
                 }
-                canvas.drawCircle(xOf(x), yOf(v), 2.6f, dot)
+                drawPoint(xOf(point.takenAt.toEpochMilli()), yOf(point.value / 10f), pointShape(point.status), dot)
             }
             canvas.drawText(UiFormat.dayShort(from), left, bottomY + 11f, small)
             val endLabel = UiFormat.dayShort(to)
             canvas.drawText(endLabel, right - small.measureText(endLabel), bottomY + 11f, small)
             y = bottomY + 18f
+        }
+
+        /** The same shapes as the chart in the app, so the status does not rely on colour. */
+        private fun drawPoint(x: Float, y: Float, shape: PointShape, paint: Paint) {
+            val r = POINT_RADIUS
+            when (shape) {
+                PointShape.CIRCLE -> canvas.drawCircle(x, y, r, paint)
+                PointShape.SQUARE -> canvas.drawRect(x - r * 0.9f, y - r * 0.9f, x + r * 0.9f, y + r * 0.9f, paint)
+                PointShape.TRIANGLE -> {
+                    val size = r * 1.3f
+                    val path = android.graphics.Path().apply {
+                        moveTo(x - size, y - size * 0.75f)
+                        lineTo(x + size, y - size * 0.75f)
+                        lineTo(x, y + size)
+                        close()
+                    }
+                    canvas.drawPath(path, paint)
+                }
+            }
         }
     }
 }
