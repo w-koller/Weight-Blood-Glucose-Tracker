@@ -23,6 +23,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -39,6 +40,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.wkoller.glucosetracker.R
 import io.github.wkoller.glucosetracker.tts.LocalSpeaker
 import io.github.wkoller.glucosetracker.ui.theme.LocalUiPrefs
@@ -211,15 +213,21 @@ fun MessageDialog(title: String, message: String, buttonText: String, onClose: (
     }
 }
 
-/** Reads [text] aloud. Shown wherever an important result appears. */
+/**
+ * Reads [text] aloud. While the text is being read, including when it was read out automatically, the
+ * same button stops it. Shown wherever an important result appears.
+ */
 @Composable
 fun SpeakButton(text: String, modifier: Modifier = Modifier) {
     val speaker = LocalSpeaker.current
     val rate = LocalUiPrefs.current.speechRate
+    val reading = speaker?.speaking?.collectAsStateWithLifecycle()?.value == text
+    // Leaving the screen stops the text, so the voice never carries on without a button to stop it.
+    DisposableEffect(speaker, text) { onDispose { speaker?.stop(text) } }
     BigButton(
-        text = stringResource(R.string.read_aloud),
-        onClick = { speaker?.speak(text, rate) },
-        icon = R.drawable.ic_volume_up,
+        text = stringResource(if (reading) R.string.stop_reading_aloud else R.string.read_aloud),
+        onClick = { if (reading) speaker?.stop() else speaker?.speak(text, rate) },
+        icon = if (reading) R.drawable.ic_stop_circle else R.drawable.ic_volume_up,
         style = ButtonStyle.SECONDARY,
         modifier = modifier,
     )

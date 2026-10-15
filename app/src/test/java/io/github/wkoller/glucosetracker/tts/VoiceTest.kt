@@ -5,6 +5,7 @@ import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -24,6 +25,22 @@ class VoiceTest {
         }
         assertEquals(VoiceChoice.PhoneDefault, VoiceChoice.decode("natural:not-a-number"))
         assertEquals(VoiceChoice.PhoneDefault, VoiceChoice.decode("something else"))
+    }
+
+    @Test
+    fun `a late report that earlier speech ended does not end the speech that replaced it`() {
+        // Pressing Stop and then Read this aloud reads the same text twice. The voice can report that the
+        // first reading ended after the second has begun.
+        val requests = SpeechRequests()
+        val first = requests.begin("Your reading is 13.7 mmol/L.")
+        requests.cancel()
+        assertNull(requests.speaking.value)
+        val second = requests.begin("Your reading is 13.7 mmol/L.")
+        requests.end(first)
+        assertEquals("Your reading is 13.7 mmol/L.", requests.speaking.value)
+        assertFalse(requests.isLatest(first))
+        requests.end(second)
+        assertNull(requests.speaking.value)
     }
 
     @Test

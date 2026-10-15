@@ -27,6 +27,7 @@ import io.github.wkoller.glucosetracker.domain.model.DoseStatus
 import io.github.wkoller.glucosetracker.domain.model.GlucoseReading
 import io.github.wkoller.glucosetracker.domain.model.Slot
 import io.github.wkoller.glucosetracker.tts.LocalSpeaker
+import io.github.wkoller.glucosetracker.tts.Speaker
 import io.github.wkoller.glucosetracker.ui.checkin.CheckInScreen
 import io.github.wkoller.glucosetracker.ui.home.HomeActions
 import io.github.wkoller.glucosetracker.ui.home.HomeScreen
@@ -34,6 +35,7 @@ import io.github.wkoller.glucosetracker.ui.plan.PlanSetupScreen
 import io.github.wkoller.glucosetracker.ui.theme.TrackerTheme
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -63,10 +65,10 @@ class ScreenFlowTest {
     @Before
     fun resetSettings() = runBlocking { app.container.settingsStore.update { Settings() } }
 
-    private fun show(settings: Settings = Settings(setupDone = true), content: @Composable () -> Unit) {
+    private fun show(settings: Settings = Settings(setupDone = true), speaker: Speaker? = null, content: @Composable () -> Unit) {
         compose.setContent {
             TrackerTheme(settings) {
-                CompositionLocalProvider(LocalSpeaker provides null) { Surface { content() } }
+                CompositionLocalProvider(LocalSpeaker provides speaker) { Surface { content() } }
             }
         }
     }
@@ -229,6 +231,31 @@ class ScreenFlowTest {
         val correction = doses.single { it.kind == DoseKind.CORRECTION }
         assertEquals(4.0, correction.givenAmount!!, 0.0)
         assertEquals(3, doses.count { it.kind == DoseKind.FIXED && it.status == DoseStatus.GIVEN })
+    }
+
+    @Test
+    fun `a result read aloud can be stopped`() {
+        seedPlan()
+        // Robolectric's phone voice never finishes starting up, so the text stays in the middle of being read.
+        val speaker = app.container.speaker
+        show(Settings(setupDone = true, readAloud = true), speaker) { CheckInScreen(onClose = {}, onMeasure = {}, onCheckIn = {}) }
+        waitFor("Please enter the reading")
+        chooseSlot("Breakfast")
+        type("13.7")
+        click("Next")
+        // The result is read out as soon as it appears, so its button offers to stop it.
+        waitFor("Stop reading aloud")
+        shot("checkin_40_stop_reading")
+        click("Stop reading aloud")
+        waitFor("Read this aloud")
+        assertNull(speaker.speaking.value)
+        click("Read this aloud")
+        waitFor("Stop reading aloud")
+        // Moving on to the next step stops the reading.
+        click("I gave 4 units")
+        waitFor("NovoMix 30 is due before breakfast.")
+        assertNull(speaker.speaking.value)
+        waitFor("Read this aloud")
     }
 
     @Test
