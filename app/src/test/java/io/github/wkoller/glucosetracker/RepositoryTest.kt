@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.wkoller.glucosetracker.data.TrackerRepository
 import io.github.wkoller.glucosetracker.data.db.AppDatabase
+import io.github.wkoller.glucosetracker.data.db.toEntities
 import io.github.wkoller.glucosetracker.domain.model.BodyMeasurement
 import io.github.wkoller.glucosetracker.domain.model.DoseKind
 import io.github.wkoller.glucosetracker.domain.model.DoseRecord
@@ -82,5 +83,18 @@ class RepositoryTest {
         assertEquals(4.0, day.doses.single().givenAmount!!, 0.0)
         assertEquals(date, day.lastWeightDate)
         assertEquals(0, repository.dayRecords(date.plusDays(1)).readings.size)
+    }
+
+    @Test
+    fun `a record added later gets the plan version in force at the time`() = runBlocking {
+        val first = TestPlans.example().toEntities(1, Instant.parse("2026-10-01T00:00:00Z"))
+        val second = TestPlans.example().copy(correctionInsulin = "Humalog").toEntities(2, Instant.parse("2026-10-05T00:00:00Z"))
+        val firstId = db.planDao().insertFull(first.plan, first.bands, first.slots, first.medicines)
+        val secondId = db.planDao().insertFull(second.plan, second.bands, second.slots, second.medicines)
+
+        assertEquals(firstId, repository.planAt(Instant.parse("2026-10-03T08:00:00Z"))!!.id)
+        assertEquals(secondId, repository.planAt(Instant.parse("2026-10-07T08:00:00Z"))!!.id)
+        // A moment before the first version belongs to the first version.
+        assertEquals(firstId, repository.planAt(Instant.parse("2026-09-20T08:00:00Z"))!!.id)
     }
 }

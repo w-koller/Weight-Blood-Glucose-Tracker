@@ -21,12 +21,8 @@ STRINGS = {
     "day_delete_body": "The record will be removed from your logbook. You can undo this straight afterwards.",
     "day_delete_confirm": "Delete",
     "day_deleted": "The record has been deleted.",
-    "edit_reading_title": "Change this reading",
     "edit_bgl_invalid": "Please enter a reading from 1.1 to 33.3 mmol/L.",
-    "edit_dose_given": "Given",
-    "edit_dose_amount": "Amount given",
     "edit_amount_invalid": "Please enter an amount, such as 4 or 0.5.",
-    "edit_measurement_invalid": "Please enter a weight from 30 to 300 kg, a waist measurement from 40 to 250 cm, or both.",
 
     "progress_title": "Progress",
     "progress_weight_title": "Weight",

@@ -26,6 +26,14 @@ interface PlanDao {
     @Query("SELECT * FROM plans WHERE id = :id")
     suspend fun byId(id: Long): PlanWithDetails?
 
+    @Transaction
+    @Query("SELECT * FROM plans WHERE effectiveFrom <= :at ORDER BY effectiveFrom DESC, id DESC LIMIT 1")
+    suspend fun effectiveAt(at: Long): PlanWithDetails?
+
+    @Transaction
+    @Query("SELECT * FROM plans ORDER BY effectiveFrom ASC, id ASC LIMIT 1")
+    suspend fun earliest(): PlanWithDetails?
+
     @Query("SELECT COALESCE(MAX(version), 0) FROM plans WHERE cycleId = :cycleId")
     suspend fun latestVersion(cycleId: String): Int
 

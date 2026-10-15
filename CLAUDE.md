@@ -17,7 +17,9 @@ export JAVA_HOME=~/.local/opt/jdk-17 ANDROID_HOME=~/Android/Sdk
 ```
 
 `ScreenFlowTest` and `ExportTest` save screenshots, report pages and a sample CSV to
-`app/build/screenshots/`. Look at them after UI changes. Robolectric cannot run `PdfDocument`, so
+`app/build/screenshots/`. Look at them after UI changes. `ScreenFlowTest` uses a very tall screen so
+each step fits in one picture; `SmallScreenTest` checks number entry on a 360×640 phone, at the largest
+text size and turned sideways, and saves `small_*.png`. Robolectric cannot run `PdfDocument`, so
 report pages are drawn through `PageSink`.
 
 CI (`.github/workflows/android.yml`) runs the same tasks and uploads the debug APK. It also builds a
@@ -27,7 +29,7 @@ secrets are set. The release keystore lives at `~/.android-keys/` and must never
 ## Layout
 
 - `domain/`: all dose and schedule rules, with no Android code. `SlidingScale`, `DoseAdvisor`,
-  `OverrideCheck`, `SlotResolver`, `NextStepEngine`, `ProgressCalculator`, `GlucoseStats`,
+  `OverrideCheck`, `SlotResolver`, `NextStepEngine`, `ProgressCalculator`, `GlucoseStats`, `LowPatterns`,
   `DailyLog`, `AssistantGuard` and `PromptBuilder`. Every rule change needs a test here.
 - `app/data`: Room (versioned plans and records) and DataStore settings.
 - `app/ui`: Compose screens. `ui/components` holds the shared senior-friendly building blocks.
@@ -65,6 +67,9 @@ Copy follows the product-UI rules in `/home/william/informed-trader/VOICE.md`:
 ## UI rules for this audience
 
 Large, always-labelled buttons (`BigButton`, at least 72 dp tall). One question per step
-(`StepScaffold`). No gesture-only or long-press-only actions and no timeouts. Status is shown with an
-icon and a word, not colour alone. Respect `LocalUiPrefs` (icons, helper text, simple mode, reduce
-motion, read aloud) in new components.
+(`StepScaffold`). Number entry uses `NumberEntryScaffold`, which keeps the value, keypad and main
+button on screen like a keyboard. Extra buttons go in `StepScaffold`'s `moreActions`, which move into
+the content on short screens. Slot names come from `Slot.label()` and `Slot.phrase()`, which follow
+the user's choice of meal names or times of day. No gesture-only or long-press-only actions and no
+timeouts. Status is shown with an icon and a word, not colour alone. Respect `LocalUiPrefs` (icons,
+helper text, simple mode, reduce motion, read aloud, slot names) in new components.

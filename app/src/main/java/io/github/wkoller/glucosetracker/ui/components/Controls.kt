@@ -126,6 +126,7 @@ fun LabeledField(
     numeric: Boolean = false,
     singleLine: Boolean = true,
     password: Boolean = false,
+    phone: Boolean = false,
 ) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, style = MaterialTheme.typography.titleMedium)
@@ -140,6 +141,7 @@ fun LabeledField(
             keyboardOptions = KeyboardOptions(
                 keyboardType = when {
                     password -> KeyboardType.Password
+                    phone -> KeyboardType.Phone
                     numeric -> KeyboardType.Decimal
                     else -> KeyboardType.Text
                 },

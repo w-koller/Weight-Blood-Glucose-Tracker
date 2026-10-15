@@ -6,16 +6,17 @@ import io.github.wkoller.glucosetracker.domain.dosing.SlidingScale
 import io.github.wkoller.glucosetracker.domain.format.Measures
 import io.github.wkoller.glucosetracker.domain.model.Plan
 import io.github.wkoller.glucosetracker.domain.model.Slot
+import io.github.wkoller.glucosetracker.domain.model.SlotNaming
 import io.github.wkoller.glucosetracker.ui.UiFormat
 import io.github.wkoller.glucosetracker.ui.components.phraseRes
 
 /** Plain sentences describing what changed between two versions of a plan, shown before the change is saved. */
 object PlanChanges {
 
-    fun describe(context: Context, old: Plan, new: Plan): List<String> {
+    fun describe(context: Context, old: Plan, new: Plan, naming: SlotNaming): List<String> {
         val lines = mutableListOf<String>()
         fun add(res: Int, vararg args: Any) { lines += context.getString(res, *args) }
-        fun slotPhrase(slot: Slot) = context.getString(slot.phraseRes())
+        fun slotPhrase(slot: Slot) = context.getString(slot.phraseRes(naming))
 
         if (old.correctionInsulin != new.correctionInsulin) add(R.string.change_insulin, old.correctionInsulin, new.correctionInsulin)
         if (old.prescriber != new.prescriber) add(R.string.change_prescriber, new.prescriber.ifBlank { context.getString(R.string.not_set) })

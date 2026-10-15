@@ -26,8 +26,8 @@ import io.github.wkoller.glucosetracker.ui.components.ButtonStyle
 import io.github.wkoller.glucosetracker.ui.components.FactRow
 import io.github.wkoller.glucosetracker.ui.components.ScreenScaffold
 import io.github.wkoller.glucosetracker.ui.components.SectionCard
-import io.github.wkoller.glucosetracker.ui.components.nameRes
-import io.github.wkoller.glucosetracker.ui.components.phraseRes
+import io.github.wkoller.glucosetracker.ui.components.label
+import io.github.wkoller.glucosetracker.ui.components.phrase
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -74,7 +74,7 @@ fun MedicinesScreen(onBack: () -> Unit, onRecord: (Slot) -> Unit) {
         }
         plan.activeSlots.filter { plan.medicinesAt(it.slot).isNotEmpty() }.forEach { schedule ->
             val slot = schedule.slot
-            SectionCard(stringResource(R.string.home_slot_line, stringResource(slot.nameRes()), UiFormat.time(context, schedule.time))) {
+            SectionCard(stringResource(R.string.home_slot_line, slot.label(), UiFormat.time(context, schedule.time))) {
                 var anyMissing = false
                 plan.medicinesAt(slot).forEach { medicine ->
                     val amount = UiFormat.dose(context, medicine.doses.getValue(slot), medicine.kind, medicine.unit)
@@ -89,7 +89,7 @@ fun MedicinesScreen(onBack: () -> Unit, onRecord: (Slot) -> Unit) {
                 }
                 if (anyMissing) {
                     BigButton(
-                        stringResource(R.string.medicines_record, stringResource(slot.phraseRes())),
+                        stringResource(R.string.medicines_record, slot.phrase()),
                         onClick = { onRecord(slot) },
                         icon = R.drawable.ic_medication,
                         style = ButtonStyle.SECONDARY,

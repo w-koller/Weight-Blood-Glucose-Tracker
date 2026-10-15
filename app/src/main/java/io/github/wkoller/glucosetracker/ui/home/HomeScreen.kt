@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -42,9 +43,12 @@ import io.github.wkoller.glucosetracker.ui.UiFormat
 import io.github.wkoller.glucosetracker.ui.appViewModel
 import io.github.wkoller.glucosetracker.ui.components.BigButton
 import io.github.wkoller.glucosetracker.ui.components.ButtonStyle
+import io.github.wkoller.glucosetracker.ui.components.NoticeCard
+import io.github.wkoller.glucosetracker.ui.components.NoticeKind
 import io.github.wkoller.glucosetracker.ui.components.SectionCard
-import io.github.wkoller.glucosetracker.ui.components.nameRes
-import io.github.wkoller.glucosetracker.ui.components.phraseRes
+import io.github.wkoller.glucosetracker.ui.components.label
+import io.github.wkoller.glucosetracker.ui.components.phrase
+import io.github.wkoller.glucosetracker.ui.components.tomorrowPhrase
 import io.github.wkoller.glucosetracker.ui.theme.LocalStatusColors
 import io.github.wkoller.glucosetracker.ui.theme.LocalUiPrefs
 
@@ -76,6 +80,17 @@ fun HomeScreen(actions: HomeActions) {
         ) {
             Text(greetingText(Greetings.at(ui.now.toLocalTime()), ui.firstName), style = MaterialTheme.typography.headlineLarge, modifier = Modifier.semantics { heading() })
             DateChip(UiFormat.dayLong(ui.now.toLocalDate()), actions.calendar)
+
+            // Shown even in simple mode: repeated lows are something the doctor needs to know about.
+            ui.lowPattern?.let { pattern ->
+                NoticeCard(
+                    NoticeKind.WARNING,
+                    stringResource(R.string.lows_title),
+                    pluralStringResource(R.plurals.lows_body, pattern.episodes, pattern.episodes, pattern.days),
+                ) {
+                    BigButton(stringResource(R.string.lows_understood), onClick = vm::acknowledgeLows, icon = R.drawable.ic_check)
+                }
+            }
 
             ui.nextStep?.let { NextStepCard(it, actions) }
 
@@ -218,11 +233,11 @@ private fun NextStepCard(step: NextStep, actions: HomeActions) {
             Text(stringResource(R.string.home_next_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
             when (step) {
                 is NextStep.CheckIn -> {
-                    Text(stringResource(R.string.home_next_check, stringResource(step.slot.phraseRes())), style = MaterialTheme.typography.headlineSmall)
+                    Text(stringResource(R.string.home_next_check, step.slot.phrase()), style = MaterialTheme.typography.headlineSmall)
                     BigButton(stringResource(R.string.home_check_bgl), onClick = { actions.checkIn(step.slot, false) }, icon = R.drawable.ic_water_drop)
                 }
                 is NextStep.Medicines -> {
-                    Text(stringResource(R.string.home_next_medicines, stringResource(step.slot.phraseRes())), style = MaterialTheme.typography.headlineSmall)
+                    Text(stringResource(R.string.home_next_medicines, step.slot.phrase()), style = MaterialTheme.typography.headlineSmall)
                     BigButton(stringResource(R.string.home_record_medicines), onClick = { actions.checkIn(step.slot, true) }, icon = R.drawable.ic_medication)
                 }
                 NextStep.Weigh -> {
@@ -240,8 +255,8 @@ private fun NextStepCard(step: NextStep, actions: HomeActions) {
                     if (nextSlot != null && nextTime != null) {
                         Text(
                             stringResource(
-                                if (step.isTomorrow) R.string.home_next_later_tomorrow else R.string.home_next_later,
-                                stringResource(nextSlot.phraseRes()),
+                                R.string.home_next_later,
+                                if (step.isTomorrow) nextSlot.tomorrowPhrase() else nextSlot.phrase(),
                                 UiFormat.time(context, nextTime),
                             ),
                             style = MaterialTheme.typography.bodyLarge,
@@ -271,7 +286,7 @@ private fun TodayCard(ui: HomeUi) {
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        stringResource(R.string.home_slot_line, stringResource(slot.slot.nameRes()), UiFormat.time(context, slot.time)),
+                        stringResource(R.string.home_slot_line, slot.slot.label(), UiFormat.time(context, slot.time)),
                         style = MaterialTheme.typography.titleMedium,
                     )
                     Text(stringResource(label), style = MaterialTheme.typography.bodyMedium)

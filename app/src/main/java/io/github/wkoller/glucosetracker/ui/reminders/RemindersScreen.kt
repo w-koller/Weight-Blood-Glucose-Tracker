@@ -31,7 +31,7 @@ import io.github.wkoller.glucosetracker.ui.components.NoticeKind
 import io.github.wkoller.glucosetracker.ui.components.ScreenScaffold
 import io.github.wkoller.glucosetracker.ui.components.SectionCard
 import io.github.wkoller.glucosetracker.ui.components.ToggleRow
-import io.github.wkoller.glucosetracker.ui.components.nameRes
+import io.github.wkoller.glucosetracker.ui.components.label
 import kotlinx.coroutines.launch
 
 @Composable
@@ -89,7 +89,7 @@ fun RemindersScreen(onBack: () -> Unit) {
             SectionCard(stringResource(R.string.reminders_times_title)) {
                 current.activeSlots.forEach { slot ->
                     FactRow(
-                        stringResource(slot.slot.nameRes()),
+                        slot.slot.label(),
                         if (slot.reminderOn) UiFormat.time(context, slot.time) else stringResource(R.string.review_reminder_off),
                     )
                 }
@@ -97,7 +97,7 @@ fun RemindersScreen(onBack: () -> Unit) {
             }
             BigButton(
                 stringResource(R.string.reminders_test),
-                onClick = { current.activeSlots.firstOrNull()?.let { container.reminders.showCheckReminder(current, it.slot) } },
+                onClick = { current.activeSlots.firstOrNull()?.let { container.reminders.showCheckReminder(current, it.slot, settings.slotNaming) } },
                 icon = R.drawable.ic_notifications,
                 style = ButtonStyle.SECONDARY,
             )

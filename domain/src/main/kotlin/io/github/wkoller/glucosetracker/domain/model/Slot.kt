@@ -14,3 +14,15 @@ enum class Slot {
         val scheduled: List<Slot> = listOf(BREAKFAST, LUNCH, DINNER, BEDTIME)
     }
 }
+
+/**
+ * What the app calls the four check times. The times themselves come from the plan; this only
+ * changes the words, for people whose checks do not line up with meals.
+ */
+enum class SlotNaming {
+    /** Breakfast, lunch, dinner and bedtime. */
+    MEALS,
+
+    /** Morning, afternoon, evening and night. */
+    TIMES_OF_DAY,
+}

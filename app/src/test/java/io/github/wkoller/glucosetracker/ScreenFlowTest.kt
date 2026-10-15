@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -26,6 +27,7 @@ import io.github.wkoller.glucosetracker.domain.model.DoseKind
 import io.github.wkoller.glucosetracker.domain.model.DoseStatus
 import io.github.wkoller.glucosetracker.domain.model.GlucoseReading
 import io.github.wkoller.glucosetracker.domain.model.Slot
+import io.github.wkoller.glucosetracker.domain.model.SlotNaming
 import io.github.wkoller.glucosetracker.tts.LocalSpeaker
 import io.github.wkoller.glucosetracker.tts.Speaker
 import io.github.wkoller.glucosetracker.ui.checkin.CheckInScreen
@@ -180,29 +182,57 @@ class ScreenFlowTest {
         assertEquals(false, settings.assistantEnabled)
     }
 
-    @Test
-    fun `scale table errors name the range`() {
-        show(Settings()) { PlanSetupScreen(onClose = {}, onFinished = {}) }
+    private fun openScaleStep() {
         click("Next")
         click("Next")
         waitFor("Your prescription")
         compose.onAllNodes(hasSetTextAction())[0].performTextInput("NovoRapid")
         click("Next")
+        waitFor("Start with an empty table")
+    }
+
+    @Test
+    fun `an empty scale is filled in on the keypad and errors name the problem`() {
+        show(Settings()) { PlanSetupScreen(onClose = {}, onFinished = {}) }
+        openScaleStep()
         click("Start with an empty table")
-        waitFor("Above the last range")
-        val fields = compose.onAllNodes(hasSetTextAction())
-        fields[0].performTextInput("10")
-        fields[1].performTextInput("0")
-        fields[2].performTextInput("8")
+        // One number at a time, named by its row, as on the paper order.
+        waitFor("Top of the range that starts at 0 mmol/L")
+        waitFor("Row 1 of 6")
+        type("10")
+        click("Next")
+        waitFor("Units of NovoRapid for 0 to 10 mmol/L")
+        type("0")
+        click("Next")
+        waitFor("Top of the range that starts at 10.1 mmol/L")
+        type("8")
+        click("Next")
+        waitFor("Please enter a number more than 10, the top of the row above.")
+        shot("setup_05_scale_keypad")
+        // Back keeps the numbers already entered, and the table says what is still missing.
+        click("Back")
+        waitFor("0 to 10 mmol/L, 0 units")
         click("Next")
         waitFor("Please fill in every box in the table.")
-        // Fill the empty boxes so the out-of-order number is the only problem left.
-        val boxes = compose.onAllNodes(hasSetTextAction())
-        boxes[3].performTextInput("2")
-        listOf(4 to "14", 5 to "4", 6 to "17", 7 to "6", 8 to "20", 9 to "8", 10 to "10").forEach { (i, v) -> boxes[i].performTextInput(v) }
-        click("Next")
-        waitFor("In the row that starts at 10.1 mmol/L, the top of the range must be more than the top of the range in the row above.")
         shot("setup_09_scale_errors")
+    }
+
+    @Test
+    fun `a row of the scale is changed on the keypad`() {
+        show(Settings()) { PlanSetupScreen(onClose = {}, onFinished = {}) }
+        openScaleStep()
+        click("Fill in a common scale")
+        click("10.1 to 12 mmol/L, 2 units")
+        waitFor("Top of the range that starts at 10.1 mmol/L")
+        repeat(2) { compose.onNodeWithTag("key_back").performClick() }
+        type("13")
+        click("Next")
+        waitFor("Units of NovoRapid for 10.1 to 13 mmol/L")
+        compose.onNodeWithTag("key_back").performClick()
+        type("3")
+        click("Done")
+        waitFor("10.1 to 13 mmol/L, 3 units")
+        waitFor("13.1 to 14 mmol/L")
     }
 
     @Test
@@ -386,6 +416,29 @@ class ScreenFlowTest {
     }
 
     @Test
+    fun `check times can be named after the time of day`() {
+        seedPlan()
+        val settings = Settings(setupDone = true, slotNaming = SlotNaming.TIMES_OF_DAY)
+        show(settings) { HomeScreen(HomeActions({ _, _ -> }, {}, {}, {}, {}, {}, {}, {})) }
+        waitFor("Morning, 7:30")
+        waitFor("Night, 9:00")
+        assertTrue(compose.onAllNodesWithText("Breakfast", substring = true).fetchSemanticsNodes().isEmpty())
+        shot("home_05_times_of_day")
+    }
+
+    @Test
+    fun `a check-in uses the chosen names for the check times`() {
+        seedPlan()
+        show(Settings(setupDone = true, slotNaming = SlotNaming.TIMES_OF_DAY)) { CheckInScreen(onClose = {}, onMeasure = {}, onCheckIn = {}) }
+        waitFor("Please enter the reading")
+        chooseSlot("Evening")
+        waitFor("Your blood glucose level in the evening")
+        type("13.7")
+        click("Next")
+        waitFor("Your dose in the evening")
+    }
+
+    @Test
     fun `small text size`() {
         seedPlan()
         show(Settings(setupDone = true, textSize = io.github.wkoller.glucosetracker.data.prefs.TextSize.SMALL)) {
@@ -462,5 +515,190 @@ class ScreenFlowTest {
         }
         waitFor("What to do next")
         shot("home_02_max_contrast_largest")
+    }
+
+    private fun showApp(): androidx.navigation.NavHostController {
+        lateinit var nav: androidx.navigation.NavHostController
+        show {
+            nav = androidx.navigation.compose.rememberNavController()
+            io.github.wkoller.glucosetracker.ui.nav.AppNavHost(
+                startWithSetup = false, openSlot = null, onSlotOpened = {}, openBackup = false, onBackupOpened = {}, navController = nav,
+            )
+        }
+        compose.waitForIdle()
+        return nav
+    }
+
+    private fun openDay(nav: androidx.navigation.NavHostController, date: LocalDate) {
+        compose.runOnUiThread { nav.navigate(io.github.wkoller.glucosetracker.ui.nav.Routes.day(date.toString())) }
+        compose.waitForIdle()
+    }
+
+    @Test
+    fun `a forgotten reading can be added to an earlier day`() {
+        seedPlan()
+        val yesterday = runBlocking { repository.logicalToday(repository.currentPlan()) }.minusDays(1)
+        val nav = showApp()
+        openDay(nav, yesterday)
+        waitFor("There are no records for this day.")
+        click("Add a record you forgot")
+        waitFor("Add a record")
+        shot("editor_01_add")
+        click("A blood glucose reading")
+        click("Lunch")
+        click("Next")
+        type("8.4")
+        click("Next")
+        waitFor("What time was it?")
+        compose.onNodeWithTag("time_value").assertTextContains("12:00", substring = true)
+        compose.onNode(androidx.compose.ui.test.hasContentDescription("5 minutes later")).performClick()
+        shot("editor_02_time")
+        click("Done")
+        waitFor("Check the new record")
+        shot("editor_03_summary")
+        click("Save")
+        waitForBackgroundWork { runBlocking { repository.readingsBetween(yesterday, yesterday) }.isNotEmpty() }
+        waitFor("Add a record you forgot")
+        waitFor("8.4 mmol/L")
+
+        val saved = runBlocking { repository.readingsBetween(yesterday, yesterday) }.single()
+        assertEquals(Slot.LUNCH, saved.slot)
+        assertEquals(84, saved.tenths)
+        assertEquals(java.time.LocalTime.of(12, 5), saved.takenAt.atZone(java.time.ZoneId.systemDefault()).toLocalTime())
+    }
+
+    @Test
+    fun `a reading can be changed and a deleted record put back`() {
+        seedPlan()
+        val today = runBlocking { repository.logicalToday(repository.currentPlan()) }
+        runBlocking {
+            val plan = repository.currentPlan()!!
+            val at = today.atTime(7, 40).atZone(java.time.ZoneId.systemDefault()).toInstant()
+            repository.addReading(GlucoseReading(0, plan.id, at, today, Slot.BREAKFAST, 137, null, null))
+        }
+        val nav = showApp()
+        openDay(nav, today)
+        waitFor("13.7 mmol/L")
+        click("Change")
+        waitFor("Change this record")
+        click("Change")
+        repeat(4) { compose.onNodeWithTag("key_back").performClick() }
+        type("12.1")
+        click("Done")
+        waitFor("12.1 mmol/L")
+        click("Save")
+        waitFor("Delete")
+        waitForBackgroundWork { runBlocking { repository.readingsBetween(today, today) }.single().tenths == 121 }
+
+        click("Delete")
+        compose.onNode(hasText("Delete") and androidx.compose.ui.test.hasAnyAncestor(androidx.compose.ui.test.isDialog())).performClick()
+        waitFor("The record has been deleted.")
+        waitForBackgroundWork { runBlocking { repository.readingsBetween(today, today) }.isEmpty() }
+        shot("day_01_undo")
+        click("Undo")
+        waitForBackgroundWork { runBlocking { repository.readingsBetween(today, today) }.size == 1 }
+    }
+
+    @Test
+    fun `a forgotten dose that differs from the scale asks for confirmation`() {
+        seedPlan()
+        val yesterday = runBlocking { repository.logicalToday(repository.currentPlan()) }.minusDays(1)
+        runBlocking {
+            val plan = repository.currentPlan()!!
+            val at = yesterday.atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant()
+            repository.addReading(GlucoseReading(0, plan.id, at, yesterday, Slot.LUNCH, 137, null, null))
+        }
+        val nav = showApp()
+        openDay(nav, yesterday)
+        waitFor("13.7 mmol/L")
+        click("Add a record you forgot")
+        click("A medicine or insulin dose")
+        click("NovoRapid")
+        click("Next")
+        click("Lunch")
+        click("Next")
+        click("Yes, it was given")
+        click("Next")
+        type("6")
+        click("Next")
+        click("Done")
+        waitFor("Check the new record")
+        click("Save")
+        waitFor("Your prescription says 4 units for a reading of 13.7 mmol/L. You have entered 6 units.")
+        shot("editor_04_dose_confirm")
+        click("Record 6 units")
+        waitForBackgroundWork { runBlocking { repository.dosesBetween(yesterday, yesterday) }.isNotEmpty() }
+        val dose = runBlocking { repository.dosesBetween(yesterday, yesterday) }.single()
+        assertEquals(DoseKind.CORRECTION, dose.kind)
+        assertEquals(4.0, dose.prescribedAmount!!, 0.0)
+        assertEquals(6.0, dose.givenAmount!!, 0.0)
+        assertTrue(dose.readingId != null)
+    }
+
+    @Test
+    fun `the low-reading screen can call 000 or the support person`() {
+        seedPlan()
+        runBlocking { app.container.settingsStore.update { it.copy(supportName = "Anne", supportPhone = "0400 111 222") } }
+        show { CheckInScreen(onClose = {}, onMeasure = {}, onCheckIn = {}) }
+        waitFor("Please enter the reading")
+        chooseSlot("Lunch")
+        type("3.2")
+        click("Next")
+        waitFor("Call Anne")
+        shot("checkin_31_low_call")
+        val shadowApp = org.robolectric.Shadows.shadowOf(app)
+        click("Call 000")
+        val emergency = shadowApp.nextStartedActivity
+        assertEquals(android.content.Intent.ACTION_DIAL, emergency.action)
+        assertEquals("tel:000", emergency.data.toString())
+        click("Call Anne")
+        val support = shadowApp.nextStartedActivity
+        assertEquals(android.content.Intent.ACTION_DIAL, support.action)
+        assertEquals("0400 111 222", support.data!!.schemeSpecificPart)
+    }
+
+    @Test
+    fun `home asks the user to tell the doctor about repeated lows`() {
+        seedPlan()
+        val today = runBlocking { repository.logicalToday(repository.currentPlan()) }
+        runBlocking {
+            val plan = repository.currentPlan()!!
+            listOf(today.minusDays(1), today.minusDays(3)).forEach { date ->
+                val at = date.atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant()
+                repository.addReading(GlucoseReading(0, plan.id, at, date, Slot.LUNCH, 34, null, null))
+            }
+        }
+        show { HomeScreen(HomeActions({ _, _ -> }, {}, {}, {}, {}, {}, {}, {})) }
+        waitFor("low on 2 occasions in the last 7 days")
+        shot("home_06_repeated_lows")
+        click("I understand")
+        waitForBackgroundWork { runBlocking { app.container.settingsStore.current() }.lowNoticeAckAt > 0 }
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Repeated low readings").fetchSemanticsNodes().isEmpty() }
+    }
+
+    @Test
+    fun `a check-in saves what was had for a low and a note`() {
+        seedPlan()
+        show { CheckInScreen(onClose = {}, onMeasure = {}, onCheckIn = {}) }
+        waitFor("Please enter the reading")
+        chooseSlot("Lunch")
+        type("3.4")
+        click("Next")
+        waitFor("What did you have?")
+        click("Fruit juice")
+        shot("checkin_32_low_treatment")
+        click("Continue without a new reading")
+        waitFor("All done")
+        click("Add a note")
+        waitFor("Your note")
+        compose.onNode(hasSetTextAction()).performTextInput("Skipped morning tea.")
+        click("Save")
+        waitFor("Skipped morning tea.")
+        shot("checkin_06_done_note")
+
+        val today = runBlocking { repository.logicalToday(repository.currentPlan()) }
+        waitForBackgroundWork {
+            runBlocking { repository.readingsBetween(today, today) }.singleOrNull()?.note == "Had fruit juice for this low reading. Skipped morning tea."
+        }
     }
 }

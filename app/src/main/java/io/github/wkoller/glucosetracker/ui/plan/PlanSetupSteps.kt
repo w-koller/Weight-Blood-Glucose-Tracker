@@ -9,22 +9,7 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Surface
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -41,6 +26,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -51,7 +38,6 @@ import io.github.wkoller.glucosetracker.R
 import io.github.wkoller.glucosetracker.data.prefs.Settings as AppSettings
 import io.github.wkoller.glucosetracker.data.prefs.TextSize
 import io.github.wkoller.glucosetracker.data.prefs.ThemeChoice
-import io.github.wkoller.glucosetracker.domain.format.Measures
 import io.github.wkoller.glucosetracker.domain.model.Frequency
 import io.github.wkoller.glucosetracker.domain.model.MedicineKind
 import io.github.wkoller.glucosetracker.domain.model.Slot
@@ -66,15 +52,18 @@ import io.github.wkoller.glucosetracker.ui.components.FactRow
 import io.github.wkoller.glucosetracker.ui.components.LabeledField
 import io.github.wkoller.glucosetracker.ui.components.NoticeCard
 import io.github.wkoller.glucosetracker.ui.components.NoticeKind
+import io.github.wkoller.glucosetracker.ui.components.NumberEntryScaffold
 import io.github.wkoller.glucosetracker.ui.components.OptionRow
 import io.github.wkoller.glucosetracker.ui.components.ScaleTable
 import io.github.wkoller.glucosetracker.ui.components.SectionCard
 import io.github.wkoller.glucosetracker.ui.components.StepScaffold
 import io.github.wkoller.glucosetracker.ui.components.TimeField
 import io.github.wkoller.glucosetracker.ui.components.ToggleRow
+import io.github.wkoller.glucosetracker.ui.components.label
 import io.github.wkoller.glucosetracker.ui.components.labelRes
-import io.github.wkoller.glucosetracker.ui.components.nameRes
-import io.github.wkoller.glucosetracker.ui.components.phraseRes
+import io.github.wkoller.glucosetracker.ui.components.phrase
+import io.github.wkoller.glucosetracker.ui.settings.SlotNamingCard
+import io.github.wkoller.glucosetracker.ui.settings.SupportPersonFields
 import kotlinx.coroutines.launch
 
 @Composable
@@ -114,7 +103,7 @@ fun draftErrorText(error: DraftError, draft: PlanDraft? = null): String = when (
     DraftError.MedicineNameMissing -> stringResource(R.string.error_medicine_name)
     DraftError.MedicineNoTimes -> stringResource(R.string.error_medicine_times)
     DraftError.MedicineUnitMissing -> stringResource(R.string.error_medicine_unit)
-    is DraftError.MedicineAmountInvalid -> stringResource(R.string.error_medicine_amount, stringResource(error.slot.phraseRes()))
+    is DraftError.MedicineAmountInvalid -> stringResource(R.string.error_medicine_amount, error.slot.phrase())
     DraftError.StartWeightInvalid -> stringResource(R.string.error_start_weight)
     DraftError.GoalWeightInvalid -> stringResource(R.string.error_goal_weight)
     DraftError.StartWaistInvalid -> stringResource(R.string.error_start_waist)
@@ -175,6 +164,8 @@ fun ColumnScope.AboutYouStep(ui: SetupUi, vm: PlanSetupViewModel) {
         value = ui.familyName,
         onValueChange = vm::setFamilyName,
     )
+    Text(stringResource(R.string.support_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+    SupportPersonFields(ui.supportName, vm::setSupportName, ui.supportPhone, vm::setSupportPhone)
 }
 
 @Composable
@@ -273,7 +264,8 @@ fun ColumnScope.ScaleStep(ui: SetupUi, vm: PlanSetupViewModel) {
         )
         return
     }
-    ScaleEditor(ui, vm)
+    Body(stringResource(R.string.setup_scale_rows_body, draft.correctionInsulin.ifBlank { stringResource(R.string.insulin_fallback) }))
+    ScaleRows(ui, vm)
     BigButton(stringResource(R.string.setup_scale_add_row), onClick = vm::addBand, icon = R.drawable.ic_add, style = ButtonStyle.SECONDARY)
     if (draft.bands.size > 2) {
         BigButton(stringResource(R.string.setup_scale_remove_row), onClick = vm::removeBand, icon = R.drawable.ic_remove, style = ButtonStyle.SECONDARY)
@@ -316,121 +308,80 @@ private fun ScaleErrors(errors: List<DraftError>, draft: PlanDraft) {
 }
 
 /**
- * The scale as a table laid out like the paper order: a BGL range on the left and units on the right.
- * Only the top of each range is typed; the start is worked out from the row above. With large text,
- * each row stacks the units under the range so nothing is squeezed.
+ * The scale laid out like the paper order, one row per range, from the lowest to the open top row.
+ * Each row is a large button that opens the keypad for that row; nothing is typed on the phone's
+ * own keyboard. Rows with a problem show an error icon and say so.
  */
 @Composable
-private fun ScaleEditor(ui: SetupUi, vm: PlanSetupViewModel) {
+private fun ScaleRows(ui: SetupUi, vm: PlanSetupViewModel) {
+    val context = LocalContext.current
     val draft = ui.draft
-    val insulin = draft.correctionInsulin.ifBlank { stringResource(R.string.insulin_fallback) }
-    val stacked = LocalDensity.current.fontScale > STACK_FONT_SCALE
     val rowsWithErrors = ui.errors.mapNotNull {
         when (it) {
-            is DraftError.BandUpperInvalid -> it.row to true
-            is DraftError.BandNotAscending -> it.row to true
-            is DraftError.BandUpperOutOfRange -> it.row to true
-            is DraftError.BandUnitsInvalid -> it.row to false
-            is DraftError.BandUnitsOutOfRange -> it.row to false
+            is DraftError.BandUpperInvalid -> it.row
+            is DraftError.BandNotAscending -> it.row
+            is DraftError.BandUpperOutOfRange -> it.row
+            is DraftError.BandUnitsInvalid -> it.row
+            is DraftError.BandUnitsOutOfRange -> it.row
             else -> null
         }
-    }
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(Modifier.padding(vertical = 8.dp)) {
-            if (!stacked) {
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text(stringResource(R.string.scale_header_bgl), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                    Text(stringResource(R.string.scale_header_units, insulin), style = MaterialTheme.typography.titleSmall, modifier = Modifier.width(UNITS_COLUMN))
-                }
-                HorizontalDivider()
-            }
-            draft.bands.forEachIndexed { index, band ->
-                val row = index + 1
-                val isLast = index == draft.bands.lastIndex
-                val lower = draft.lowerBoundText(index)
-                val aboveValue = draft.bands.getOrNull(index - 1)?.upper?.ifBlank { null }
-                val rangeLabel = if (isLast) {
-                    if (aboveValue != null) stringResource(R.string.scale_above, aboveValue) else stringResource(R.string.setup_scale_above_unknown)
-                } else {
-                    stringResource(R.string.setup_scale_up_to, lower ?: "…")
-                }
-                val upperDescription = stringResource(R.string.setup_scale_upper_description, lower ?: "…")
-                val unitsDescription = if (isLast) {
-                    stringResource(R.string.setup_scale_units_description_last, insulin, aboveValue ?: "…")
-                } else {
-                    stringResource(R.string.setup_scale_units_description, insulin, lower ?: "…", band.upper.ifBlank { "…" })
-                }
-                val upperError = rowsWithErrors.any { it.first == row && it.second }
-                val unitsError = rowsWithErrors.any { it.first == row && !it.second }
-                val upperField: @Composable () -> Unit = {
-                    ScaleField(band.upper, { vm.setBand(index, band.copy(upper = it)) }, upperDescription, upperError, decimal = true)
-                }
-                val unitsField: @Composable () -> Unit = {
-                    ScaleField(band.units, { vm.setBand(index, band.copy(units = it.filter(Char::isDigit))) }, unitsDescription, unitsError, decimal = false)
-                }
-                if (stacked) {
-                    Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(rangeLabel, style = MaterialTheme.typography.titleMedium)
-                            if (!isLast) {
-                                Spacer(Modifier.width(8.dp))
-                                upperField()
-                                Spacer(Modifier.width(8.dp))
-                                Text(stringResource(R.string.unit_mmol), style = MaterialTheme.typography.bodyLarge)
-                            }
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            unitsField()
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.setup_scale_units_of, insulin), style = MaterialTheme.typography.bodyLarge)
-                        }
-                    }
-                } else {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Text(rangeLabel, style = MaterialTheme.typography.titleMedium, modifier = if (isLast) Modifier else Modifier.widthIn(min = RANGE_LABEL))
-                            if (!isLast) {
-                                Spacer(Modifier.width(8.dp))
-                                upperField()
-                            }
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.width(UNITS_COLUMN)) {
-                            unitsField()
-                            Spacer(Modifier.width(6.dp))
-                            Text(stringResource(R.string.units_word), style = MaterialTheme.typography.bodyLarge)
-                        }
-                    }
-                }
-                if (!isLast) HorizontalDivider()
-            }
+    }.toSet()
+    draft.bands.forEachIndexed { index, band ->
+        val range = if (index == draft.bands.lastIndex) {
+            stringResource(R.string.scale_above, draft.bands.getOrNull(index - 1)?.upper?.ifBlank { null } ?: MISSING)
+        } else {
+            stringResource(R.string.scale_range, draft.lowerBoundText(index) ?: MISSING, band.upper.ifBlank { MISSING })
         }
+        val units = band.units.toIntOrNull()?.let { UiFormat.units(context, it.toDouble()) } ?: stringResource(R.string.setup_scale_units_missing)
+        val problem = index + 1 in rowsWithErrors
+        BigButton(
+            stringResource(R.string.scale_row_description, range, units),
+            onClick = { vm.startBand(index) },
+            icon = if (problem) R.drawable.ic_error else R.drawable.ic_edit,
+            helper = stringResource(if (problem) R.string.setup_scale_check_row else R.string.setup_scale_change_row),
+            style = ButtonStyle.SECONDARY,
+        )
     }
 }
 
-@Composable
-private fun ScaleField(value: String, onChange: (String) -> Unit, description: String, error: Boolean, decimal: Boolean) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onChange,
-        singleLine = true,
-        isError = error,
-        textStyle = MaterialTheme.typography.titleLarge,
-        keyboardOptions = KeyboardOptions(keyboardType = if (decimal) KeyboardType.Decimal else KeyboardType.Number, imeAction = ImeAction.Next),
-        modifier = Modifier
-            .width(if (decimal) 92.dp else 76.dp)
-            .heightIn(min = 60.dp)
-            .semantics { contentDescription = description },
-    )
-}
+/** Shown in place of a number that has not been entered yet. */
+private const val MISSING = "…"
 
-private val UNITS_COLUMN = 132.dp
-private val RANGE_LABEL = 104.dp
-private const val STACK_FONT_SCALE = 1.1f
+/** One number of the sliding scale on the big keypad, named by its row, as on the paper order. */
+@Composable
+fun BandEntry(ui: SetupUi, edit: BandEdit, vm: PlanSetupViewModel) {
+    val draft = ui.draft
+    val insulin = draft.correctionInsulin.ifBlank { stringResource(R.string.insulin_fallback) }
+    val isLast = edit.index == draft.bands.lastIndex
+    val lower = draft.lowerBoundText(edit.index) ?: MISSING
+    val title = when {
+        edit.field == BandField.UPPER -> stringResource(R.string.setup_scale_upper_description, lower)
+        isLast -> stringResource(R.string.setup_scale_units_description_last, insulin, draft.bands.getOrNull(edit.index - 1)?.upper?.ifBlank { null } ?: MISSING)
+        else -> stringResource(R.string.setup_scale_units_description, insulin, lower, draft.bands[edit.index].upper.ifBlank { MISSING })
+    }
+    val done = edit.field == BandField.UNITS && (!edit.guided || isLast)
+    val error = when (val problem = edit.problem) {
+        null -> null
+        BandProblem.Missing -> stringResource(if (edit.field == BandField.UPPER) R.string.setup_band_missing_upper else R.string.setup_band_missing_units)
+        is BandProblem.NotAbove -> stringResource(R.string.setup_band_not_above, problem.previous)
+        BandProblem.UpperOutOfRange -> stringResource(R.string.setup_band_upper_range)
+        BandProblem.UnitsOutOfRange -> stringResource(R.string.setup_band_units_range)
+    }
+    NumberEntryScaffold(
+        title = title,
+        onBack = vm::closeBand,
+        value = edit.text,
+        unit = stringResource(if (edit.field == BandField.UPPER) R.string.unit_mmol else R.string.units_word),
+        onValueChange = vm::setBandText,
+        error = error,
+        maxDecimals = if (edit.field == BandField.UPPER) 1 else 0,
+        maxIntegerDigits = 2,
+        action = { BigButton(stringResource(if (done) R.string.done else R.string.next), onClick = vm::nextBand) },
+    ) {
+        Text(stringResource(R.string.setup_scale_row_of, edit.index + 1, draft.bands.size), style = MaterialTheme.typography.titleMedium)
+        Body(stringResource(R.string.setup_scale_entry_body))
+    }
+}
 
 @Composable
 fun ColumnScope.ScaleCheckStep(ui: SetupUi, vm: PlanSetupViewModel) {
@@ -450,8 +401,9 @@ fun ColumnScope.TimesStep(ui: SetupUi, vm: PlanSetupViewModel) {
     val draft = ui.draft
     Body(stringResource(R.string.setup_times_body))
     DraftErrors(ui.errors)
+    SlotNamingCard()
     draft.slots.forEach { slot ->
-        SectionCard(title = stringResource(slot.slot.nameRes())) {
+        SectionCard(title = slot.slot.label()) {
             ToggleRow(
                 title = stringResource(R.string.setup_times_check),
                 description = null,
@@ -491,7 +443,7 @@ fun ColumnScope.MedicinesStep(ui: SetupUi, vm: PlanSetupViewModel) {
         SectionCard(title = medicine.displayName) {
             Text(stringResource(medicine.kind.labelRes()), style = MaterialTheme.typography.bodyLarge)
             medicine.doses.forEach { (slot, amount) ->
-                FactRow(stringResource(slot.nameRes()), UiFormat.dose(context, amount, medicine.kind, medicine.unit))
+                FactRow(slot.label(), UiFormat.dose(context, amount, medicine.kind, medicine.unit))
             }
             BigButton(stringResource(R.string.change), onClick = { vm.startMedicine(draft) }, icon = R.drawable.ic_edit, style = ButtonStyle.SECONDARY)
             BigButton(stringResource(R.string.remove), onClick = { vm.removeMedicine(draft.key) }, icon = R.drawable.ic_delete, style = ButtonStyle.SECONDARY)
@@ -551,7 +503,7 @@ fun MedicineEditor(ui: SetupUi, medicine: MedicineDraft, vm: PlanSetupViewModel)
         }
         Slot.scheduled.forEach { slot ->
             LabeledField(
-                label = stringResource(slot.nameRes()),
+                label = slot.label(),
                 value = medicine.amounts[slot] ?: "",
                 onValueChange = { text -> vm.editMedicine { it.copy(amounts = it.amounts + (slot to text)) } },
                 suffix = suffix,
@@ -695,7 +647,7 @@ fun ColumnScope.ReviewStep(ui: SetupUi, vm: PlanSetupViewModel) {
                 add(stringResource(if (slot.correctionPrescribed) R.string.review_prescribed_on else R.string.review_prescribed_off, insulin))
                 add(stringResource(if (slot.reminderOn) R.string.review_reminder_on else R.string.review_reminder_off))
             }
-            FactRow(stringResource(slot.slot.nameRes()), parts.joinToString("\n"))
+            FactRow(slot.slot.label(), parts.joinToString("\n"))
         }
         BigButton(stringResource(R.string.change), onClick = { vm.goTo(SetupStep.TIMES) }, icon = R.drawable.ic_edit, style = ButtonStyle.SECONDARY)
     }
@@ -703,7 +655,7 @@ fun ColumnScope.ReviewStep(ui: SetupUi, vm: PlanSetupViewModel) {
         if (draft.medicines.isEmpty()) Body(stringResource(R.string.setup_medicines_none))
         draft.medicines.map(draft::toMedicine).forEach { medicine ->
             val lines = medicine.doses.map { (slot, amount) ->
-                stringResource(R.string.review_medicine_line, stringResource(slot.nameRes()), UiFormat.dose(context, amount, medicine.kind, medicine.unit))
+                stringResource(R.string.review_medicine_line, slot.label(), UiFormat.dose(context, amount, medicine.kind, medicine.unit))
             }
             FactRow(medicine.displayName, lines.joinToString("\n"))
         }

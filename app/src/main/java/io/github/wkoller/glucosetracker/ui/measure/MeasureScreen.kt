@@ -23,14 +23,11 @@ import io.github.wkoller.glucosetracker.ui.appViewModel
 import io.github.wkoller.glucosetracker.ui.components.BigButton
 import io.github.wkoller.glucosetracker.ui.components.ButtonStyle
 import io.github.wkoller.glucosetracker.ui.components.ConfirmDialog
-import io.github.wkoller.glucosetracker.ui.components.NoticeCard
-import io.github.wkoller.glucosetracker.ui.components.NoticeKind
-import io.github.wkoller.glucosetracker.ui.components.NumberPad
+import io.github.wkoller.glucosetracker.ui.components.NumberEntryScaffold
 import io.github.wkoller.glucosetracker.ui.components.SectionCard
 import io.github.wkoller.glucosetracker.ui.components.SpeakButton
 import io.github.wkoller.glucosetracker.ui.components.StepScaffold
-import io.github.wkoller.glucosetracker.ui.components.ValueDisplay
-import io.github.wkoller.glucosetracker.ui.components.phraseRes
+import io.github.wkoller.glucosetracker.ui.components.phrase
 
 @Composable
 fun MeasureScreen(onClose: () -> Unit, onCheckIn: (Slot) -> Unit) {
@@ -44,12 +41,16 @@ fun MeasureScreen(onClose: () -> Unit, onCheckIn: (Slot) -> Unit) {
     val onBack = { if (!vm.back()) onClose() }
 
     when (ui.step) {
-        MeasureStep.WEIGHT -> StepScaffold(
-            step = 1,
-            stepCount = 0,
+        MeasureStep.WEIGHT -> NumberEntryScaffold(
             title = stringResource(R.string.measure_weight_title),
             onBack = onBack,
-            actions = { BigButton(stringResource(R.string.save), onClick = vm::submit, enabled = !ui.busy) },
+            value = ui.text,
+            unit = stringResource(R.string.unit_kg),
+            onValueChange = vm::setText,
+            error = measureError(ui.error, R.string.measure_weight_range),
+            maxDecimals = 2,
+            maxIntegerDigits = 3,
+            action = { BigButton(stringResource(R.string.save), onClick = vm::submit, enabled = !ui.busy) },
         ) {
             Text(stringResource(R.string.measure_weight_body), style = MaterialTheme.typography.bodyLarge)
             ui.lastWeight?.let { last ->
@@ -58,28 +59,27 @@ fun MeasureScreen(onClose: () -> Unit, onCheckIn: (Slot) -> Unit) {
                     style = MaterialTheme.typography.titleMedium,
                 )
             }
-            MeasureError(ui.error, R.string.measure_weight_range)
-            ValueDisplay(ui.text, stringResource(R.string.unit_kg))
-            NumberPad(ui.text, vm::setText, maxDecimals = 2, maxIntegerDigits = 3)
         }
         MeasureStep.WAIST_OFFER -> StepScaffold(
             step = 2,
             stepCount = 0,
             title = stringResource(R.string.measure_waist_offer_title),
             onBack = null,
-            actions = {
-                BigButton(stringResource(R.string.measure_waist_yes), onClick = vm::measureWaist, icon = R.drawable.ic_straighten)
-                BigButton(stringResource(R.string.measure_waist_no), onClick = vm::skipWaist, style = ButtonStyle.SECONDARY)
-            },
+            actions = { BigButton(stringResource(R.string.measure_waist_yes), onClick = vm::measureWaist, icon = R.drawable.ic_straighten) },
+            moreActions = { BigButton(stringResource(R.string.measure_waist_no), onClick = vm::skipWaist, style = ButtonStyle.SECONDARY) },
         ) {
             Text(stringResource(R.string.measure_waist_offer_body), style = MaterialTheme.typography.bodyLarge)
         }
-        MeasureStep.WAIST -> StepScaffold(
-            step = 2,
-            stepCount = 0,
+        MeasureStep.WAIST -> NumberEntryScaffold(
             title = stringResource(R.string.measure_waist_title),
             onBack = onBack,
-            actions = { BigButton(stringResource(R.string.save), onClick = vm::submit, enabled = !ui.busy) },
+            value = ui.text,
+            unit = stringResource(R.string.unit_cm),
+            onValueChange = vm::setText,
+            error = measureError(ui.error, R.string.measure_waist_range),
+            maxDecimals = 1,
+            maxIntegerDigits = 3,
+            action = { BigButton(stringResource(R.string.save), onClick = vm::submit, enabled = !ui.busy) },
         ) {
             Text(stringResource(R.string.measure_waist_body), style = MaterialTheme.typography.bodyLarge)
             ui.lastWaist?.let { last ->
@@ -88,9 +88,6 @@ fun MeasureScreen(onClose: () -> Unit, onCheckIn: (Slot) -> Unit) {
                     style = MaterialTheme.typography.titleMedium,
                 )
             }
-            MeasureError(ui.error, R.string.measure_waist_range)
-            ValueDisplay(ui.text, stringResource(R.string.unit_cm))
-            NumberPad(ui.text, vm::setText, maxDecimals = 1, maxIntegerDigits = 3)
         }
         MeasureStep.DONE -> DoneStep(ui, onClose, onCheckIn)
     }
@@ -117,14 +114,11 @@ fun MeasureScreen(onClose: () -> Unit, onCheckIn: (Slot) -> Unit) {
 }
 
 @Composable
-private fun MeasureError(error: NumberInput<Int>?, rangeRes: Int) {
-    error ?: return
-    val body = when (error) {
-        NumberInput.Empty -> stringResource(R.string.measure_empty)
-        NumberInput.NotANumber -> stringResource(R.string.measure_not_number)
-        else -> stringResource(rangeRes)
-    }
-    NoticeCard(NoticeKind.DANGER, stringResource(R.string.checkin_check_number), body)
+private fun measureError(error: NumberInput<Int>?, rangeRes: Int): String? = when (error) {
+    null -> null
+    NumberInput.Empty -> stringResource(R.string.measure_empty)
+    NumberInput.NotANumber -> stringResource(R.string.measure_not_number)
+    else -> stringResource(rangeRes)
 }
 
 @Composable
@@ -141,9 +135,15 @@ private fun DoneStep(ui: MeasureUi, onClose: () -> Unit, onCheckIn: (Slot) -> Un
         actions = {
             val next = ui.nextStep
             if (next is NextStep.CheckIn) {
-                BigButton(stringResource(R.string.checkin_done_next_check, stringResource(next.slot.phraseRes())), onClick = { onCheckIn(next.slot) }, icon = R.drawable.ic_water_drop)
+                BigButton(stringResource(R.string.checkin_done_next_check, next.slot.phrase()), onClick = { onCheckIn(next.slot) }, icon = R.drawable.ic_water_drop)
+            } else {
+                BigButton(stringResource(R.string.go_home), onClick = onClose, icon = R.drawable.ic_home)
             }
-            BigButton(stringResource(R.string.go_home), onClick = onClose, icon = R.drawable.ic_home, style = if (next is NextStep.CheckIn) ButtonStyle.SECONDARY else ButtonStyle.PRIMARY)
+        },
+        moreActions = if (ui.nextStep is NextStep.CheckIn) {
+            { BigButton(stringResource(R.string.go_home), onClick = onClose, icon = R.drawable.ic_home, style = ButtonStyle.SECONDARY) }
+        } else {
+            null
         },
     ) {
         SectionCard(title = null) { sentences.forEach { Text(it, style = MaterialTheme.typography.titleMedium) } }

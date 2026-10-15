@@ -38,4 +38,19 @@ class SlotResolverTest {
         assertEquals(date.minusDays(1), SlotResolver.logicalDate(plan, LocalDateTime.of(date, LocalTime.of(0, 30))))
         assertEquals(date, SlotResolver.logicalDate(plan, LocalDateTime.of(date, LocalTime.of(6, 0))))
     }
+
+    @Test
+    fun `a time added to a day stays on that day`() {
+        val date = LocalDate.of(2026, 10, 10)
+        // A late bedtime check at 00:30 happened after midnight, but still belongs to the 10th.
+        val late = SlotResolver.momentOn(plan, date, LocalTime.of(0, 30))
+        assertEquals(LocalDateTime.of(date.plusDays(1), LocalTime.of(0, 30)), late)
+        assertEquals(date, SlotResolver.logicalDate(plan, late))
+        // From the start of the day onwards, the time is on the day itself.
+        listOf(LocalTime.of(2, 15), LocalTime.of(7, 30), LocalTime.of(23, 59)).forEach { time ->
+            val moment = SlotResolver.momentOn(plan, date, time)
+            assertEquals(LocalDateTime.of(date, time), moment)
+            assertEquals(date, SlotResolver.logicalDate(plan, moment))
+        }
+    }
 }

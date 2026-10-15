@@ -39,6 +39,11 @@ fun PlanSetupScreen(onClose: () -> Unit, onFinished: () -> Unit, onRestored: () 
     }
 
     val onBack: (() -> Unit)? = { if (!vm.back()) onClose() }
+    val band = ui.editingBand
+    if (band != null) {
+        BandEntry(ui, band, vm)
+        return
+    }
     val medicine = ui.editingMedicine
     if (medicine != null) {
         MedicineEditor(ui, medicine, vm)

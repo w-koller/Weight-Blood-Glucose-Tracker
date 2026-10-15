@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.sp
 import io.github.wkoller.glucosetracker.data.prefs.Settings
 import io.github.wkoller.glucosetracker.data.prefs.ThemeChoice
+import io.github.wkoller.glucosetracker.domain.model.SlotNaming
 
 /** Colours for glucose status. Each status is always shown with an icon and a word as well. */
 @Immutable
@@ -54,6 +55,7 @@ data class UiPrefs(
     val haptics: Boolean = true,
     val readAloud: Boolean = false,
     val speechRate: Float = 0.9f,
+    val slotNaming: SlotNaming = SlotNaming.MEALS,
 )
 
 val LocalStatusColors = staticCompositionLocalOf { LightStatus }
@@ -212,6 +214,7 @@ fun TrackerTheme(settings: Settings, content: @Composable () -> Unit) {
         haptics = settings.haptics,
         readAloud = settings.readAloud,
         speechRate = settings.speechRate,
+        slotNaming = settings.slotNaming,
     )
     MaterialTheme(colorScheme = colors, typography = AppTypography) {
         CompositionLocalProvider(

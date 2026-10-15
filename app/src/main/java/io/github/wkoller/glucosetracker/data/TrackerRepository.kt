@@ -31,6 +31,12 @@ class TrackerRepository(private val db: AppDatabase, private val clock: Clock) {
 
     suspend fun planById(id: Long): Plan? = plans.byId(id)?.toDomain()
 
+    /**
+     * The plan version that was in force at [at], for a record added afterwards. A moment before the
+     * first version belongs to that first version.
+     */
+    suspend fun planAt(at: Instant): Plan? = (plans.effectiveAt(at.toEpochMilli()) ?: plans.earliest())?.toDomain()
+
     /** Saves [plan] as a new version of its cycle, in force from now. Earlier records keep their own version. */
     suspend fun savePlanVersion(plan: Plan): Long {
         val version = plans.latestVersion(plan.cycleId) + 1
