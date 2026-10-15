@@ -63,7 +63,7 @@ STRINGS = {
     "report_notes_heading": "Notes",
     "report_note": "%1$s: %2$s",
     "report_chart_heading": "Blood glucose readings",
-    "report_chart_key": "The shaded band is the target range and the dashed line is the low level. Blue dots are in the target range, orange dots are above or below it, and red dots are low.",
+    "report_chart_key": "The shaded band is the target range and the dashed line is the low level. Round blue dots are in the target range, orange squares are above or below it, and red triangles are low.",
     "report_daily_heading": "Daily records",
     "report_tablets": "Tablets taken %1$d of %2$d",
 }

@@ -53,7 +53,7 @@ object Routes {
     const val DAY = "day/{date}"
     const val PROGRESS = "progress"
     const val MEDICINES = "medicines"
-    const val ASSISTANT = "assistant"
+    const val ASSISTANT = "assistant?days={days}"
     const val SETTINGS = "settings"
     const val DISPLAY = "settings/display"
     const val PLAN = "settings/plan"
@@ -76,6 +76,9 @@ object Routes {
     fun editRecord(date: String, kind: String, id: Long) = "record?date=$date&kind=$kind&id=$id"
     fun addRecord(date: String) = "record?date=$date&kind=&id=0"
     fun unlock(next: SetupMode) = "unlock?next=${next.name}"
+
+    /** The assistant, about the last [days] days from the Progress screen, or the usual today and this week. */
+    fun assistant(days: Int? = null) = "assistant?days=${days ?: 0}"
 }
 
 @Composable
@@ -123,7 +126,7 @@ fun AppNavHost(
                     medicines = { navController.navigate(Routes.MEDICINES) },
                     logbook = { navController.navigate(Routes.LOGBOOK) },
                     progress = { navController.navigate(Routes.PROGRESS) },
-                    assistant = { navController.navigate(Routes.ASSISTANT) },
+                    assistant = { navController.navigate(Routes.assistant()) },
                     settings = { navController.navigate(Routes.SETTINGS) },
                 ),
             )
@@ -178,15 +181,16 @@ fun AppNavHost(
                 navArgument("id") { type = NavType.StringType; defaultValue = "0" },
             ),
         ) { RecordEditorScreen(onClose = back) }
-        composable(Routes.PROGRESS) { ProgressScreen(onBack = back) }
+        composable(Routes.PROGRESS) { ProgressScreen(onBack = back, onAsk = { navController.navigate(Routes.assistant(it)) }) }
         composable(Routes.MEDICINES) {
             MedicinesScreen(onBack = back, onRecord = { navController.navigate(Routes.checkIn(it, medicinesOnly = true)) })
         }
-        composable(Routes.ASSISTANT) {
+        composable(Routes.ASSISTANT, arguments = listOf(navArgument("days") { type = NavType.IntType; defaultValue = 0 })) { entry ->
             AssistantScreen(
                 onBack = back,
                 onSetUp = { navController.navigate(Routes.ASSISTANT_SETTINGS) },
                 onCheckIn = { navController.navigate(Routes.checkIn(null)) },
+                progressDays = entry.arguments?.getInt("days")?.takeIf { it > 0 },
             )
         }
         composable(Routes.SETTINGS) {

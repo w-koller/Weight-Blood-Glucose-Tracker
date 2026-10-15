@@ -32,19 +32,21 @@ data class AssistantUi(
     val summary: Exchange? = null,
     val exchanges: List<Exchange> = emptyList(),
     val question: String = "",
+    /** The period chosen on the Progress screen, when the assistant was opened from there. */
+    val progressDays: Int? = null,
 ) {
     val modelReady: Boolean get() = enabled && modelState == ModelState.Ready
     val busy: Boolean get() = summary?.streaming == true || exchanges.any { it.streaming }
 }
 
-class AssistantViewModel(private val container: AppContainer) : ViewModel() {
+class AssistantViewModel(private val container: AppContainer, progressDays: Int? = null) : ViewModel() {
     private val service = container.assistant
-    private val _ui = MutableStateFlow(AssistantUi())
+    private val _ui = MutableStateFlow(AssistantUi(progressDays = progressDays))
     val ui: StateFlow<AssistantUi> = _ui.asStateFlow()
     private var job: Job? = null
 
     init {
-        viewModelScope.launch { _ui.update { it.copy(context = service.context()) } }
+        viewModelScope.launch { _ui.update { it.copy(context = service.context(progressDays)) } }
         viewModelScope.launch { container.models.state.collect { state -> _ui.update { it.copy(modelState = state) } } }
         viewModelScope.launch { container.settingsStore.settings.collect { s -> _ui.update { it.copy(enabled = s.assistantEnabled) } } }
         viewModelScope.launch { container.models.refresh() }
@@ -59,7 +61,8 @@ class AssistantViewModel(private val container: AppContainer) : ViewModel() {
         if (_ui.value.busy) return
         _ui.update { it.copy(summary = Exchange(question = "")) }
         job = viewModelScope.launch {
-            service.summarise(context, _ui.value.period).collect { reply -> _ui.update { it.copy(summary = it.summary?.let { s -> apply(s, reply) }) } }
+            val days = _ui.value.progressDays ?: _ui.value.period.days.toInt()
+            service.summarise(context, days).collect { reply -> _ui.update { it.copy(summary = it.summary?.let { s -> apply(s, reply) }) } }
             _ui.update { it.copy(summary = it.summary?.copy(streaming = false, loadingModel = false)) }
         }
     }

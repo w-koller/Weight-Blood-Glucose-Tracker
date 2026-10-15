@@ -5,7 +5,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasSetTextAction
@@ -23,17 +26,28 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.wkoller.glucosetracker.data.db.toEntities
 import io.github.wkoller.glucosetracker.data.prefs.Settings
+import io.github.wkoller.glucosetracker.domain.assistant.AssistantGuard
+import io.github.wkoller.glucosetracker.domain.assistant.QuestionKind
+import io.github.wkoller.glucosetracker.domain.model.BodyMeasurement
 import io.github.wkoller.glucosetracker.domain.model.DoseKind
 import io.github.wkoller.glucosetracker.domain.model.DoseStatus
 import io.github.wkoller.glucosetracker.domain.model.GlucoseReading
+import io.github.wkoller.glucosetracker.domain.model.MeterFlag
 import io.github.wkoller.glucosetracker.domain.model.Slot
 import io.github.wkoller.glucosetracker.domain.model.SlotNaming
+import io.github.wkoller.glucosetracker.domain.progress.ProgressModelBuilder
 import io.github.wkoller.glucosetracker.tts.LocalSpeaker
 import io.github.wkoller.glucosetracker.tts.Speaker
+import io.github.wkoller.glucosetracker.ui.UiFormat
+import io.github.wkoller.glucosetracker.ui.assistant.AssistantScreen
+import io.github.wkoller.glucosetracker.ui.assistant.PERIOD_SUGGESTIONS
 import io.github.wkoller.glucosetracker.ui.checkin.CheckInScreen
 import io.github.wkoller.glucosetracker.ui.home.HomeActions
 import io.github.wkoller.glucosetracker.ui.home.HomeScreen
 import io.github.wkoller.glucosetracker.ui.plan.PlanSetupScreen
+import io.github.wkoller.glucosetracker.ui.progress.ProgressContent
+import io.github.wkoller.glucosetracker.ui.progress.ProgressScreen
+import io.github.wkoller.glucosetracker.ui.progress.ProgressUi
 import io.github.wkoller.glucosetracker.ui.theme.TrackerTheme
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -47,6 +61,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
 import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * Drives the real screens on the JVM and saves a picture of each step to build/screenshots, so the
@@ -372,6 +387,82 @@ class ScreenFlowTest {
         }
         assertEquals(listOf(io.github.wkoller.glucosetracker.ai.AssistantReply.DoseQuestion), replies[0])
         assertEquals(listOf(io.github.wkoller.glucosetracker.ai.AssistantReply.Urgent), replies[1])
+    }
+
+    private fun at(date: LocalDate, hour: Int) = date.atTime(hour, 0).atZone(ZoneId.systemDefault()).toInstant()
+
+    @Test
+    fun `progress reads each day of the chart`() {
+        seedPlan()
+        val today = LocalDate.now()
+        runBlocking {
+            val planId = repository.currentPlan()!!.id
+            fun reading(date: LocalDate, slot: Slot, hour: Int, tenths: Int, flag: MeterFlag? = null) =
+                GlucoseReading(0, planId, at(date, hour), date, slot, tenths, flag, null)
+            repository.addReading(reading(today.minusDays(2), Slot.BREAKFAST, 7, 68))
+            repository.addReading(reading(today.minusDays(2), Slot.DINNER, 17, 124))
+            repository.addReading(reading(today.minusDays(1), Slot.LUNCH, 12, 11, MeterFlag.LO))
+            repository.addReading(reading(today, Slot.BREAKFAST, 7, 72))
+            repository.addMeasurement(BodyMeasurement(0, at(today.minusDays(2), 7), today.minusDays(2), 112_400, null, null))
+            repository.addMeasurement(BodyMeasurement(0, at(today, 7), today, 111_900, null, null))
+        }
+        show { ProgressScreen(onBack = {}, onAsk = {}) }
+        waitFor("Average by time of day")
+
+        // TalkBack reads the summary, then one stop for each day of glucose readings.
+        fun glucoseDay(date: LocalDate) = hasContentDescription(UiFormat.dayLong(date) + ". ", substring = true) and hasContentDescription("mmol/L", substring = true)
+        listOf(today.minusDays(2), today.minusDays(1), today).forEach { date ->
+            assertEquals(1, compose.onAllNodes(glucoseDay(date)).fetchSemanticsNodes().size)
+        }
+        compose.onNode(glucoseDay(today.minusDays(2)) and hasContentDescription("12.4 mmol/L before dinner, above your target range.", substring = true)).assertExists()
+        compose.onNode(glucoseDay(today.minusDays(1)) and hasContentDescription("LO (below 1.1 mmol/L) before lunch, low.", substring = true)).assertExists()
+        compose.onNode(hasContentDescription(UiFormat.dayLong(today) + ". 111.9 kg.")).assertExists()
+        val rows = compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.CollectionInfo)).fetchSemanticsNodes()
+            .map { it.config[SemanticsProperties.CollectionInfo].rowCount }
+        assertEquals(listOf(2, 3), rows.sorted())
+
+        // Each fact is one stop, with its label and value together.
+        compose.onNode(hasText("Average") and hasText("mmol/L", substring = true)).assertExists()
+
+        // The assistant is not set up in tests, so there is no button to ask it.
+        assertTrue(compose.onAllNodesWithText("Ask about these records").fetchSemanticsNodes().isEmpty())
+        shot("progress_01_chart")
+    }
+
+    @Test
+    fun `progress offers to ask the assistant when it is ready`() {
+        val today = LocalDate.now()
+        val plan = TestPlans.example()
+        val readings = (0L..13L).flatMap { back ->
+            val date = today.minusDays(back)
+            listOf(
+                GlucoseReading(0, 1, at(date, 7), date, Slot.BREAKFAST, if (back % 6 == 0L) 36 else 92 + back.toInt() * 3, null, null),
+                GlucoseReading(0, 1, at(date, 17), date, Slot.DINNER, 118 + back.toInt() % 4 * 9, null, null),
+            )
+        }
+        val model = ProgressModelBuilder.build(plan, today.minusDays(13), today, readings, emptyList(), emptyList())
+        var asked: Int? = null
+        show { ProgressContent(ProgressUi(loading = false, days = 14, model = model, canAsk = true), onBack = {}, onAsk = { asked = it }, onDays = {}) }
+        shot("progress_02_ask")
+        click("Ask about these records")
+        assertEquals(14, asked)
+    }
+
+    @Test
+    fun `the assistant opens on the progress period`() {
+        seedPlan()
+        val context = runBlocking { app.container.assistant.context(progressDays = 30) }!!
+        assertEquals(context.today.minusDays(29), context.progress.from)
+        assertEquals(30, context.progress.days)
+
+        // The suggested questions about trends go to the model, not to the fixed dose or urgent answers.
+        val names = listOf(context.plan.correctionInsulin) + context.plan.medicines.map { it.name }
+        PERIOD_SUGGESTIONS.forEach { res -> assertEquals(app.getString(res), QuestionKind.GENERAL, AssistantGuard.classify(app.getString(res), names)) }
+
+        show { AssistantScreen(onBack = {}, onSetUp = {}, onCheckIn = {}, progressDays = 30) }
+        waitFor("The last 30 days")
+        waitFor("The assistant can see the same figures as your Progress screen")
+        shot("assistant_03_progress")
     }
 
     @Test

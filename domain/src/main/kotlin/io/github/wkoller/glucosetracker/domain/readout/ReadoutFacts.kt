@@ -5,10 +5,9 @@ import io.github.wkoller.glucosetracker.domain.model.DoseRecord
 import io.github.wkoller.glucosetracker.domain.model.GlucoseReading
 import io.github.wkoller.glucosetracker.domain.model.Plan
 import io.github.wkoller.glucosetracker.domain.progress.DoseSummary
-import io.github.wkoller.glucosetracker.domain.progress.GlucoseStats
 import io.github.wkoller.glucosetracker.domain.progress.GlucoseSummary
 import io.github.wkoller.glucosetracker.domain.progress.Progress
-import io.github.wkoller.glucosetracker.domain.progress.ProgressCalculator
+import io.github.wkoller.glucosetracker.domain.progress.ProgressModelBuilder
 import java.time.LocalDate
 
 enum class ReadoutPeriod(val days: Long) { TODAY(1), WEEK(7) }
@@ -36,30 +35,17 @@ object ReadoutBuilder {
         doses: List<DoseRecord>,
         measurements: List<BodyMeasurement>,
     ): ReadoutFacts {
-        val from = today.minusDays(period.days - 1)
-        val inPeriod = { date: LocalDate -> !date.isBefore(from) && !date.isAfter(today) }
-        val periodReadings = readings.filter { inPeriod(it.date) }
-        val periodDoses = doses.filter { inPeriod(it.date) }
+        val model = ProgressModelBuilder.build(plan, today.minusDays(period.days - 1), today, readings, doses, measurements)
         return ReadoutFacts(
             period = period,
-            from = from,
-            to = today,
+            from = model.from,
+            to = model.to,
             plan = plan,
-            glucose = GlucoseStats.summarise(periodReadings, plan.targets),
-            doses = GlucoseStats.summariseDoses(periodDoses),
-            weight = ProgressCalculator.weight(plan.goals, measurements.filter { !it.date.isAfter(today) }),
-            waist = ProgressCalculator.waist(plan.goals, measurements.filter { !it.date.isAfter(today) }),
-            weightChangeInPeriod = weightChange(measurements, from, today),
+            glucose = model.glucose,
+            doses = model.doses,
+            weight = model.weight,
+            waist = model.waist,
+            weightChangeInPeriod = model.weightChangeInPeriod,
         )
-    }
-
-    private fun weightChange(measurements: List<BodyMeasurement>, from: LocalDate, to: LocalDate): Int? {
-        val weights = measurements.filter { it.weightGrams != null }.sortedBy { it.takenAt }
-        val last = weights.lastOrNull { !it.date.isAfter(to) && !it.date.isBefore(from) } ?: return null
-        val before = weights.lastOrNull { it.date.isBefore(from) }
-            ?: weights.firstOrNull { !it.date.isBefore(from) }
-            ?: return null
-        if (before === last) return null
-        return last.weightGrams!! - before.weightGrams!!
     }
 }
