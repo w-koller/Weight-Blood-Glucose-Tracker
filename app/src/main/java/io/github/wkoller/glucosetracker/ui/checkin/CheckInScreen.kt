@@ -1,5 +1,7 @@
 package io.github.wkoller.glucosetracker.ui.checkin
 
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,25 +43,27 @@ import io.github.wkoller.glucosetracker.domain.schedule.NextStep
 import io.github.wkoller.glucosetracker.domain.validation.NumberInput
 import io.github.wkoller.glucosetracker.tts.LocalSpeaker
 import io.github.wkoller.glucosetracker.ui.UiFormat
+import io.github.wkoller.glucosetracker.ui.appContainer
 import io.github.wkoller.glucosetracker.ui.appViewModel
 import io.github.wkoller.glucosetracker.ui.components.BglValue
 import io.github.wkoller.glucosetracker.ui.components.BigButton
 import io.github.wkoller.glucosetracker.ui.components.ButtonStyle
 import io.github.wkoller.glucosetracker.ui.components.ConfirmDialog
 import io.github.wkoller.glucosetracker.ui.components.FactRow
+import io.github.wkoller.glucosetracker.ui.components.LabeledField
 import io.github.wkoller.glucosetracker.ui.components.NoticeCard
 import io.github.wkoller.glucosetracker.ui.components.NoticeKind
-import io.github.wkoller.glucosetracker.ui.components.NumberPad
+import io.github.wkoller.glucosetracker.ui.components.NumberEntryScaffold
 import io.github.wkoller.glucosetracker.ui.components.OptionRow
 import io.github.wkoller.glucosetracker.ui.components.ScaleTable
 import io.github.wkoller.glucosetracker.ui.components.SectionCard
 import io.github.wkoller.glucosetracker.ui.components.SpeakButton
 import io.github.wkoller.glucosetracker.ui.components.StatusChip
 import io.github.wkoller.glucosetracker.ui.components.StepScaffold
-import io.github.wkoller.glucosetracker.ui.components.ValueDisplay
 import io.github.wkoller.glucosetracker.ui.components.labelRes
-import io.github.wkoller.glucosetracker.ui.components.nameRes
-import io.github.wkoller.glucosetracker.ui.components.phraseRes
+import io.github.wkoller.glucosetracker.ui.components.label
+import io.github.wkoller.glucosetracker.ui.components.phrase
+import io.github.wkoller.glucosetracker.ui.components.tomorrowPhrase
 import io.github.wkoller.glucosetracker.ui.theme.LocalUiPrefs
 import kotlinx.coroutines.delay
 import java.time.Instant
@@ -85,7 +89,8 @@ fun CheckInScreen(onClose: () -> Unit, onMeasure: (String) -> Unit, onCheckIn: (
         CheckInStep.SKIP_REASON -> SkipReasonStep(ui, vm, onBack)
         CheckInStep.MEDICINE -> MedicineStep(ui, vm, onBack)
         CheckInStep.TABLETS -> TabletsStep(ui, vm, onBack)
-        CheckInStep.DONE -> DoneStep(ui, onClose, onMeasure, onCheckIn)
+        CheckInStep.DONE -> DoneStep(ui, onClose, onMeasure, onCheckIn, onNote = vm::startNote)
+        CheckInStep.NOTE -> NoteStep(ui, vm, onBack)
     }
 
     ui.confirm?.let { pending -> DoseConfirmDialog(ui, pending, vm) }
@@ -94,13 +99,31 @@ fun CheckInScreen(onClose: () -> Unit, onMeasure: (String) -> Unit, onCheckIn: (
 @Composable
 private fun BglStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit) {
     var choosingSlot by remember { mutableStateOf(false) }
-    StepScaffold(
-        step = 1,
-        stepCount = 0,
-        title = stringResource(R.string.checkin_bgl_title, stringResource(ui.slot.phraseRes())),
+    // A short error sits beside the keypad. When the meter may be showing LO or HI, the full explanation goes above.
+    val error = when (ui.bglError) {
+        NumberInput.Empty -> R.string.checkin_bgl_empty
+        NumberInput.NotANumber -> R.string.checkin_bgl_not_number_short
+        NumberInput.TooLow -> R.string.checkin_bgl_too_low_short
+        NumberInput.TooHigh -> R.string.checkin_bgl_too_high_short
+        else -> null
+    }
+    val explanation = when (ui.bglError) {
+        NumberInput.TooLow -> R.string.checkin_bgl_too_low
+        NumberInput.TooHigh -> R.string.checkin_bgl_too_high
+        else -> null
+    }
+    NumberEntryScaffold(
+        title = stringResource(R.string.checkin_bgl_title, ui.slot.phrase()),
         onBack = onBack,
-        actions = { BigButton(stringResource(R.string.next), onClick = vm::submitBgl, enabled = !ui.busy) },
+        value = ui.bglText,
+        unit = stringResource(R.string.unit_mmol),
+        onValueChange = vm::setBglText,
+        error = error?.let { stringResource(it) },
+        maxDecimals = 1,
+        maxIntegerDigits = 2,
+        action = { BigButton(stringResource(R.string.next), onClick = vm::submitBgl, enabled = !ui.busy) },
     ) {
+        explanation?.let { NoticeCard(NoticeKind.DANGER, stringResource(R.string.checkin_check_number), stringResource(it)) }
         Text(stringResource(R.string.checkin_bgl_body), style = MaterialTheme.typography.bodyLarge)
         BigButton(
             stringResource(R.string.checkin_change_time_of_day),
@@ -108,18 +131,6 @@ private fun BglStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit) {
             icon = R.drawable.ic_schedule,
             style = ButtonStyle.SECONDARY,
         )
-        ui.bglError?.let { error ->
-            val message = when (error) {
-                NumberInput.Empty -> R.string.checkin_bgl_empty
-                NumberInput.NotANumber -> R.string.checkin_bgl_not_number
-                NumberInput.TooLow -> R.string.checkin_bgl_too_low
-                NumberInput.TooHigh -> R.string.checkin_bgl_too_high
-                is NumberInput.Valid -> null
-            }
-            message?.let { NoticeCard(NoticeKind.DANGER, stringResource(R.string.checkin_check_number), stringResource(it)) }
-        }
-        ValueDisplay(ui.bglText, stringResource(R.string.unit_mmol))
-        NumberPad(ui.bglText, vm::setBglText, maxDecimals = 1, maxIntegerDigits = 2)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
             BigButton(stringResource(R.string.checkin_meter_lo), onClick = { vm.meterShows(MeterFlag.LO) }, style = ButtonStyle.SECONDARY, modifier = Modifier.weight(1f))
             BigButton(stringResource(R.string.checkin_meter_hi), onClick = { vm.meterShows(MeterFlag.HI) }, style = ButtonStyle.SECONDARY, modifier = Modifier.weight(1f))
@@ -132,7 +143,7 @@ private fun BglStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Slot.entries.forEach { slot ->
-                        OptionRow(stringResource(slot.nameRes()), null, ui.slot == slot, { vm.setSlot(slot); choosingSlot = false })
+                        OptionRow(slot.label(), null, ui.slot == slot, { vm.setSlot(slot); choosingSlot = false })
                     }
                 }
             },
@@ -158,18 +169,53 @@ private fun LowStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit) {
         actions = {
             if (ui.recheckAt == null) {
                 BigButton(stringResource(R.string.checkin_low_start_timer), onClick = vm::startRecheckTimer, icon = R.drawable.ic_timer)
+            } else {
+                BigButton(stringResource(R.string.checkin_low_new_reading), onClick = vm::enterNewReading, icon = R.drawable.ic_water_drop)
             }
-            BigButton(stringResource(R.string.checkin_low_new_reading), onClick = vm::enterNewReading, icon = R.drawable.ic_water_drop, style = if (ui.recheckAt == null) ButtonStyle.SECONDARY else ButtonStyle.PRIMARY)
+        },
+        moreActions = {
+            if (ui.recheckAt == null) {
+                BigButton(stringResource(R.string.checkin_low_new_reading), onClick = vm::enterNewReading, icon = R.drawable.ic_water_drop, style = ButtonStyle.SECONDARY)
+            }
             BigButton(stringResource(R.string.checkin_low_continue), onClick = vm::continueAfterLow, style = ButtonStyle.SECONDARY)
         },
     ) {
         StatusChip(ui.advice!!.status)
         NoticeCard(NoticeKind.DANGER, stringResource(R.string.checkin_low_notice_title), message)
         ui.recheckAt?.let { RecheckCountdown(it) }
-        NoticeCard(NoticeKind.WARNING, stringResource(R.string.checkin_low_help_title), stringResource(R.string.checkin_low_help))
+        NoticeCard(NoticeKind.WARNING, stringResource(R.string.checkin_low_help_title), stringResource(R.string.checkin_low_help)) {
+            CallButtons()
+        }
+        SectionCard(stringResource(R.string.low_treatment_title)) {
+            if (LocalUiPrefs.current.showHelperText) Text(stringResource(R.string.low_treatment_body), style = MaterialTheme.typography.bodyLarge)
+            LowTreatment.entries.forEach { treatment ->
+                OptionRow(stringResource(treatment.labelRes), null, ui.treatments[reading.id] == treatment, { vm.chooseTreatment(treatment) })
+            }
+        }
         SpeakButton(message)
     }
 }
+
+/**
+ * Opens the phone's dialler with 000, or with the support person's number when one is saved. The
+ * user still presses call in the dialler, so a stray tap never rings anyone.
+ */
+@Composable
+private fun CallButtons() {
+    val context = LocalContext.current
+    val settings by appContainer().settingsStore.settings.collectAsStateWithLifecycle(null)
+    fun dial(number: String) {
+        runCatching { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null))) }
+    }
+    BigButton(stringResource(R.string.low_call_emergency), onClick = { dial(EMERGENCY_NUMBER) }, icon = R.drawable.ic_call, style = ButtonStyle.DANGER)
+    settings?.takeIf { it.hasSupportPerson }?.let { person ->
+        val label = if (person.supportName.isBlank()) stringResource(R.string.low_call_support_unnamed) else stringResource(R.string.low_call_support, person.supportName)
+        BigButton(label, onClick = { dial(person.supportPhone) }, icon = R.drawable.ic_call, style = ButtonStyle.SECONDARY)
+    }
+}
+
+/** Australia's emergency number. The low-reading advice already tells the user to call it. */
+private const val EMERGENCY_NUMBER = "000"
 
 @Composable
 private fun RecheckCountdown(at: Instant) {
@@ -213,16 +259,22 @@ private fun ResultStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit) 
     StepScaffold(
         step = 2,
         stepCount = 0,
-        title = stringResource(R.string.checkin_result_title, stringResource(ui.slot.phraseRes())),
+        title = stringResource(R.string.checkin_result_title, ui.slot.phrase()),
         onBack = onBack,
         actions = {
             if (advice.units > 0) {
                 BigButton(stringResource(R.string.checkin_gave_amount, unitsText), onClick = vm::giveSuggested, icon = R.drawable.ic_check, enabled = !ui.busy)
-                BigButton(stringResource(R.string.checkin_gave_other), onClick = vm::enterOtherAmount, style = ButtonStyle.SECONDARY)
-                BigButton(stringResource(R.string.checkin_not_given), onClick = vm::notGivenCorrection, style = ButtonStyle.SECONDARY)
             } else {
                 BigButton(stringResource(R.string.continue_label), onClick = vm::continueWithoutDose, enabled = !ui.busy)
             }
+        },
+        moreActions = if (advice.units > 0) {
+            {
+                BigButton(stringResource(R.string.checkin_gave_other), onClick = vm::enterOtherAmount, style = ButtonStyle.SECONDARY)
+                BigButton(stringResource(R.string.checkin_not_given), onClick = vm::notGivenCorrection, style = ButtonStyle.SECONDARY)
+            }
+        } else {
+            null
         },
     ) {
         Text(headline, style = MaterialTheme.typography.titleLarge)
@@ -248,11 +300,11 @@ private fun noticeText(notice: DoseNotice, ui: CheckInUi, unitsText: String): No
     return when (notice) {
         DoseNotice.Hypo -> null
         DoseNotice.NotPrescribedTime -> {
-            val listed = plan.slots.filter { it.correctionPrescribed }.map { stringResource(it.slot.phraseRes()) }
+            val listed = plan.slots.filter { it.correctionPrescribed }.map { it.slot.phrase() }
             val body = if (listed.isEmpty()) {
-                stringResource(R.string.checkin_notice_not_prescribed_none, insulin, unitsText, stringResource(ui.slot.phraseRes()))
+                stringResource(R.string.checkin_notice_not_prescribed_none, insulin, unitsText, ui.slot.phrase())
             } else {
-                stringResource(R.string.checkin_notice_not_prescribed, insulin, UiFormat.joinWithAnd(context, listed), unitsText, stringResource(ui.slot.phraseRes()))
+                stringResource(R.string.checkin_notice_not_prescribed, insulin, UiFormat.joinWithAnd(context, listed), unitsText, ui.slot.phrase())
             }
             NoticeText(NoticeKind.WARNING, body, stringResource(R.string.checkin_notice_not_prescribed_title))
         }
@@ -270,23 +322,23 @@ private fun noticeText(notice: DoseNotice, ui: CheckInUi, unitsText: String): No
 private fun AmountStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit) {
     val plan = ui.plan ?: return
     val name = if (ui.step == CheckInStep.MEDICINE_AMOUNT) ui.currentInsulin?.medicine?.displayName.orEmpty() else plan.correctionInsulin
-    StepScaffold(
-        step = 3,
-        stepCount = 0,
+    val error = ui.amountError?.let { error ->
+        when (error) {
+            NumberInput.TooHigh -> R.string.checkin_amount_too_high
+            else -> R.string.checkin_amount_invalid
+        }
+    }
+    NumberEntryScaffold(
         title = stringResource(R.string.checkin_amount_title, name),
         onBack = onBack,
-        actions = { BigButton(stringResource(R.string.next), onClick = vm::submitAmount, enabled = !ui.busy) },
-    ) {
-        ui.amountError?.let { error ->
-            val message = when (error) {
-                NumberInput.TooHigh -> R.string.checkin_amount_too_high
-                else -> R.string.checkin_amount_invalid
-            }
-            NoticeCard(NoticeKind.DANGER, stringResource(R.string.checkin_check_number), stringResource(message))
-        }
-        ValueDisplay(ui.amountText, stringResource(R.string.units_word))
-        NumberPad(ui.amountText, vm::setAmountText, maxDecimals = 1, maxIntegerDigits = 2)
-    }
+        value = ui.amountText,
+        unit = stringResource(R.string.units_word),
+        onValueChange = vm::setAmountText,
+        error = error?.let { stringResource(it) },
+        maxDecimals = 1,
+        maxIntegerDigits = 2,
+        action = { BigButton(stringResource(R.string.next), onClick = vm::submitAmount, enabled = !ui.busy) },
+    )
 }
 
 @Composable
@@ -313,7 +365,7 @@ private fun MedicineStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit
     val context = LocalContext.current
     val due = ui.currentInsulin ?: return
     val amountText = UiFormat.dose(context, due.amount, due.medicine.kind, due.medicine.unit)
-    val sentence = stringResource(R.string.checkin_medicine_due, due.medicine.displayName, amountText, stringResource(ui.slot.phraseRes()))
+    val sentence = stringResource(R.string.checkin_medicine_due, due.medicine.displayName, amountText, ui.slot.phrase())
     StepScaffold(
         step = 4,
         stepCount = 0,
@@ -321,6 +373,8 @@ private fun MedicineStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit
         onBack = onBack,
         actions = {
             BigButton(stringResource(R.string.checkin_gave_amount, amountText), onClick = vm::giveMedicine, icon = R.drawable.ic_check, enabled = !ui.busy)
+        },
+        moreActions = {
             BigButton(stringResource(R.string.checkin_gave_other), onClick = vm::enterOtherAmount, style = ButtonStyle.SECONDARY)
             BigButton(stringResource(R.string.checkin_not_given), onClick = vm::notGivenMedicine, style = ButtonStyle.SECONDARY)
         },
@@ -340,7 +394,7 @@ private fun TabletsStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit)
     StepScaffold(
         step = 5,
         stepCount = 0,
-        title = stringResource(R.string.checkin_tablets_title, stringResource(ui.slot.phraseRes())),
+        title = stringResource(R.string.checkin_tablets_title, ui.slot.phrase()),
         onBack = onBack,
         actions = {
             if (ui.tabletsSeparately) {
@@ -348,8 +402,12 @@ private fun TabletsStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit)
                 BigButton(stringResource(R.string.save), onClick = vm::saveTablets, enabled = allAnswered && !ui.busy)
             } else {
                 BigButton(stringResource(R.string.checkin_tablets_all), onClick = vm::tookAllOthers, icon = R.drawable.ic_check, enabled = !ui.busy)
-                BigButton(stringResource(R.string.checkin_tablets_some), onClick = vm::answerSeparately, style = ButtonStyle.SECONDARY)
             }
+        },
+        moreActions = if (ui.tabletsSeparately) {
+            null
+        } else {
+            { BigButton(stringResource(R.string.checkin_tablets_some), onClick = vm::answerSeparately, style = ButtonStyle.SECONDARY) }
         },
     ) {
         ui.dueOthers.forEach { due ->
@@ -366,27 +424,31 @@ private fun TabletsStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit)
 }
 
 @Composable
-private fun DoneStep(ui: CheckInUi, onClose: () -> Unit, onMeasure: (String) -> Unit, onCheckIn: (Slot) -> Unit) {
+private fun DoneStep(ui: CheckInUi, onClose: () -> Unit, onMeasure: (String) -> Unit, onCheckIn: (Slot) -> Unit, onNote: () -> Unit) {
     val context = LocalContext.current
     val next = ui.nextStep
+    val hasNextButton = next == NextStep.Weigh || next == NextStep.MeasureWaist || (next is NextStep.CheckIn && next.slot != ui.slot)
     StepScaffold(
         step = 6,
         stepCount = 0,
         title = stringResource(R.string.checkin_done_title),
         onBack = null,
         actions = {
-            when (next) {
-                NextStep.Weigh -> BigButton(stringResource(R.string.home_record_weight), onClick = { onMeasure("weight") }, icon = R.drawable.ic_monitor_weight)
-                NextStep.MeasureWaist -> BigButton(stringResource(R.string.home_record_waist), onClick = { onMeasure("waist") }, icon = R.drawable.ic_straighten)
-                is NextStep.CheckIn -> if (next.slot != ui.slot) {
-                    BigButton(stringResource(R.string.checkin_done_next_check, stringResource(next.slot.phraseRes())), onClick = { onCheckIn(next.slot) }, icon = R.drawable.ic_water_drop)
-                }
-                else -> Unit
+            when {
+                next == NextStep.Weigh -> BigButton(stringResource(R.string.home_record_weight), onClick = { onMeasure("weight") }, icon = R.drawable.ic_monitor_weight)
+                next == NextStep.MeasureWaist -> BigButton(stringResource(R.string.home_record_waist), onClick = { onMeasure("waist") }, icon = R.drawable.ic_straighten)
+                next is NextStep.CheckIn && next.slot != ui.slot ->
+                    BigButton(stringResource(R.string.checkin_done_next_check, next.slot.phrase()), onClick = { onCheckIn(next.slot) }, icon = R.drawable.ic_water_drop)
+                else -> BigButton(stringResource(R.string.go_home), onClick = onClose, icon = R.drawable.ic_home)
             }
-            BigButton(stringResource(R.string.go_home), onClick = onClose, icon = R.drawable.ic_home, style = if (next is NextStep.AllDone) ButtonStyle.PRIMARY else ButtonStyle.SECONDARY)
+        },
+        moreActions = if (hasNextButton) {
+            { BigButton(stringResource(R.string.go_home), onClick = onClose, icon = R.drawable.ic_home, style = ButtonStyle.SECONDARY) }
+        } else {
+            null
         },
     ) {
-        Text(stringResource(R.string.checkin_done_body, stringResource(ui.slot.phraseRes())), style = MaterialTheme.typography.bodyLarge)
+        Text(stringResource(R.string.checkin_done_body, ui.slot.phrase()), style = MaterialTheme.typography.bodyLarge)
         SectionCard(stringResource(R.string.checkin_done_summary)) {
             ui.readings.forEach { reading ->
                 val value = when (reading.meterFlag) {
@@ -405,6 +467,15 @@ private fun DoneStep(ui: CheckInUi, onClose: () -> Unit, onMeasure: (String) -> 
                 }
                 FactRow(dose.medicineName, value)
             }
+            if (ui.note.isNotBlank()) FactRow(stringResource(R.string.edit_note), ui.note)
+        }
+        if (ui.readings.isNotEmpty() || ui.recorded.isNotEmpty()) {
+            BigButton(
+                stringResource(if (ui.note.isBlank()) R.string.editor_add_note else R.string.checkin_change_note),
+                onClick = onNote,
+                icon = R.drawable.ic_edit,
+                style = ButtonStyle.SECONDARY,
+            )
         }
         when (next) {
             is NextStep.AllDone -> {
@@ -412,8 +483,8 @@ private fun DoneStep(ui: CheckInUi, onClose: () -> Unit, onMeasure: (String) -> 
                 val nextTime = next.nextTime
                 if (nextSlot != null && nextTime != null) Text(
                     stringResource(
-                        if (next.isTomorrow) R.string.home_next_later_tomorrow else R.string.home_next_later,
-                        stringResource(nextSlot.phraseRes()),
+                        R.string.home_next_later,
+                        if (next.isTomorrow) nextSlot.tomorrowPhrase() else nextSlot.phrase(),
                         UiFormat.time(context, nextTime),
                     ),
                     style = MaterialTheme.typography.titleMedium,
@@ -423,6 +494,21 @@ private fun DoneStep(ui: CheckInUi, onClose: () -> Unit, onMeasure: (String) -> 
             NextStep.MeasureWaist -> Text(stringResource(R.string.home_next_waist), style = MaterialTheme.typography.titleMedium)
             else -> Unit
         }
+    }
+}
+
+/** An optional note at the end of a check-in, such as "Did not feel like eating lunch". */
+@Composable
+private fun NoteStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit) {
+    StepScaffold(
+        step = 7,
+        stepCount = 0,
+        title = stringResource(R.string.editor_note_title),
+        onBack = onBack,
+        actions = { BigButton(stringResource(R.string.save), onClick = vm::saveNote, icon = R.drawable.ic_check, enabled = !ui.busy) },
+    ) {
+        Text(stringResource(R.string.editor_note_body), style = MaterialTheme.typography.bodyLarge)
+        LabeledField(stringResource(R.string.edit_note), ui.noteText, vm::setNoteText, hint = stringResource(R.string.edit_note_hint), singleLine = false)
     }
 }
 
@@ -440,7 +526,7 @@ private fun DoseConfirmDialog(ui: CheckInUi, pending: PendingConfirm, vm: CheckI
     val messages = pending.prompts.map { prompt ->
         when (prompt) {
             is DosePrompt.AlreadyDosed -> stringResource(R.string.confirm_already, UiFormat.units(context, prompt.amount), name, UiFormat.time(context, prompt.at))
-            is DosePrompt.NotPrescribedTime -> stringResource(R.string.confirm_not_prescribed, name, stringResource(prompt.slot.phraseRes()))
+            is DosePrompt.NotPrescribedTime -> stringResource(R.string.confirm_not_prescribed, name, prompt.slot.phrase())
             is DosePrompt.DifferentAmount -> {
                 val prescribed = UiFormat.dose(context, prompt.prescribed, kind, unit)
                 if (pending.target == DoseTarget.Correction && ui.advice != null) {

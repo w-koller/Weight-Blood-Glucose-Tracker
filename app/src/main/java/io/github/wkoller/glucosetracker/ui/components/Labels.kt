@@ -1,6 +1,8 @@
 package io.github.wkoller.glucosetracker.ui.components
 
 import androidx.annotation.StringRes
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import io.github.wkoller.glucosetracker.R
 import io.github.wkoller.glucosetracker.data.prefs.TextSize
 import io.github.wkoller.glucosetracker.domain.dosing.GlucoseStatus
@@ -8,25 +10,74 @@ import io.github.wkoller.glucosetracker.domain.model.Frequency
 import io.github.wkoller.glucosetracker.domain.model.MedicineKind
 import io.github.wkoller.glucosetracker.domain.model.SkipReason
 import io.github.wkoller.glucosetracker.domain.model.Slot
+import io.github.wkoller.glucosetracker.domain.model.SlotNaming
+import io.github.wkoller.glucosetracker.ui.theme.LocalUiPrefs
 
-/** "Breakfast", "Bedtime" and so on, for headings and lists. */
+/** "Breakfast" or "Morning", "Bedtime" or "Night" and so on, for headings and lists. */
 @StringRes
-fun Slot.nameRes(): Int = when (this) {
-    Slot.BREAKFAST -> R.string.slot_breakfast
-    Slot.LUNCH -> R.string.slot_lunch
-    Slot.DINNER -> R.string.slot_dinner
-    Slot.BEDTIME -> R.string.slot_bedtime
-    Slot.OTHER -> R.string.slot_other
+fun Slot.nameRes(naming: SlotNaming): Int = when (naming) {
+    SlotNaming.MEALS -> when (this) {
+        Slot.BREAKFAST -> R.string.slot_breakfast
+        Slot.LUNCH -> R.string.slot_lunch
+        Slot.DINNER -> R.string.slot_dinner
+        Slot.BEDTIME -> R.string.slot_bedtime
+        Slot.OTHER -> R.string.slot_other
+    }
+    SlotNaming.TIMES_OF_DAY -> when (this) {
+        Slot.BREAKFAST -> R.string.slot_morning
+        Slot.LUNCH -> R.string.slot_afternoon
+        Slot.DINNER -> R.string.slot_evening
+        Slot.BEDTIME -> R.string.slot_night
+        Slot.OTHER -> R.string.slot_other
+    }
 }
 
-/** "before breakfast", "at bedtime" and so on, for use inside a sentence. */
+/** "before breakfast" or "in the morning", "at bedtime" or "at night" and so on, for use inside a sentence. */
 @StringRes
-fun Slot.phraseRes(): Int = when (this) {
-    Slot.BREAKFAST -> R.string.slot_phrase_breakfast
-    Slot.LUNCH -> R.string.slot_phrase_lunch
-    Slot.DINNER -> R.string.slot_phrase_dinner
-    Slot.BEDTIME -> R.string.slot_phrase_bedtime
-    Slot.OTHER -> R.string.slot_phrase_other
+fun Slot.phraseRes(naming: SlotNaming): Int = when (naming) {
+    SlotNaming.MEALS -> when (this) {
+        Slot.BREAKFAST -> R.string.slot_phrase_breakfast
+        Slot.LUNCH -> R.string.slot_phrase_lunch
+        Slot.DINNER -> R.string.slot_phrase_dinner
+        Slot.BEDTIME -> R.string.slot_phrase_bedtime
+        Slot.OTHER -> R.string.slot_phrase_other
+    }
+    SlotNaming.TIMES_OF_DAY -> when (this) {
+        Slot.BREAKFAST -> R.string.slot_phrase_morning
+        Slot.LUNCH -> R.string.slot_phrase_afternoon
+        Slot.DINNER -> R.string.slot_phrase_evening
+        Slot.BEDTIME -> R.string.slot_phrase_night
+        Slot.OTHER -> R.string.slot_phrase_other
+    }
+}
+
+/** The slot's name in the words chosen in Display and accessibility. */
+@Composable
+fun Slot.label(): String = stringResource(nameRes(LocalUiPrefs.current.slotNaming))
+
+/** The slot's phrase in the words chosen in Display and accessibility. */
+@Composable
+fun Slot.phrase(): String = stringResource(phraseRes(LocalUiPrefs.current.slotNaming))
+
+/** "tomorrow before breakfast" or "tomorrow morning", for the next check when it falls on the next day. */
+@Composable
+fun Slot.tomorrowPhrase(): String = when (LocalUiPrefs.current.slotNaming) {
+    SlotNaming.MEALS -> stringResource(R.string.slot_tomorrow, phrase())
+    SlotNaming.TIMES_OF_DAY -> stringResource(
+        when (this) {
+            Slot.BREAKFAST -> R.string.slot_tomorrow_morning
+            Slot.LUNCH -> R.string.slot_tomorrow_afternoon
+            Slot.DINNER -> R.string.slot_tomorrow_evening
+            Slot.BEDTIME -> R.string.slot_tomorrow_night
+            Slot.OTHER -> R.string.slot_tomorrow_other
+        },
+    )
+}
+
+@StringRes
+fun SlotNaming.labelRes(): Int = when (this) {
+    SlotNaming.MEALS -> R.string.slot_naming_meals
+    SlotNaming.TIMES_OF_DAY -> R.string.slot_naming_times
 }
 
 /** The column names used in the family's spreadsheet, kept for the export. */

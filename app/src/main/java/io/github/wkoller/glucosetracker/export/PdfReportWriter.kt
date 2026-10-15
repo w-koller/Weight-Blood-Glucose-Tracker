@@ -20,6 +20,7 @@ import io.github.wkoller.glucosetracker.domain.model.MedicineKind
 import io.github.wkoller.glucosetracker.domain.model.MeterFlag
 import io.github.wkoller.glucosetracker.domain.model.Plan
 import io.github.wkoller.glucosetracker.domain.model.Slot
+import io.github.wkoller.glucosetracker.domain.model.SlotNaming
 import io.github.wkoller.glucosetracker.domain.progress.GlucoseStats
 import io.github.wkoller.glucosetracker.domain.progress.ProgressCalculator
 import io.github.wkoller.glucosetracker.domain.records.DayLog
@@ -53,7 +54,7 @@ private class PdfSink(private val document: PdfDocument) : PageSink {
 private const val CHART_HEIGHT = 170f
 
 /** A printable A4 report for the doctor: the plan, a summary, a glucose chart and the daily records. */
-class PdfReportWriter(private val context: Context) {
+class PdfReportWriter(private val context: Context, private val naming: SlotNaming = SlotNaming.MEALS) {
 
     fun write(file: File, plan: Plan, from: LocalDate, to: LocalDate, days: List<DayLog>, preparedOn: LocalDate, patientName: String? = null) {
         val document = PdfDocument()
@@ -88,11 +89,11 @@ class PdfReportWriter(private val context: Context) {
                 listOf(range, UiFormat.units(context, band.units.toDouble()))
             },
         )
-        val prescribed = plan.slots.filter { it.correctionPrescribed }.map { context.getString(it.slot.phraseRes()) }
+        val prescribed = plan.slots.filter { it.correctionPrescribed }.map { context.getString(it.slot.phraseRes(naming)) }
         writer.text(context.getString(R.string.report_prescribed_times, plan.correctionInsulin, UiFormat.joinWithAnd(context, prescribed).ifBlank { context.getString(R.string.not_set) }), writer.body)
         plan.medicines.forEach { medicine ->
             val times = medicine.doses.entries.joinToString(", ") { (slot, amount) ->
-                context.getString(R.string.report_medicine_time, UiFormat.dose(context, amount, medicine.kind, medicine.unit), context.getString(slot.phraseRes()))
+                context.getString(R.string.report_medicine_time, UiFormat.dose(context, amount, medicine.kind, medicine.unit), context.getString(slot.phraseRes(naming)))
             }
             writer.text(context.getString(R.string.report_medicine, medicine.displayName, times), writer.body)
         }
@@ -116,7 +117,7 @@ class PdfReportWriter(private val context: Context) {
             glucose.averageTenths?.let { writer.text(context.getString(R.string.report_average, Measures.formatTenths(it)), writer.body) }
             glucose.perSlot.forEach { slot ->
                 writer.text(
-                    context.getString(R.string.report_slot_average, context.getString(slot.slot.nameRes()), Measures.formatTenths(slot.averageTenths ?: 0), UiFormat.readings(context, slot.count)),
+                    context.getString(R.string.report_slot_average, context.getString(slot.slot.nameRes(naming)), Measures.formatTenths(slot.averageTenths ?: 0), UiFormat.readings(context, slot.count)),
                     writer.body,
                 )
             }
@@ -157,7 +158,7 @@ class PdfReportWriter(private val context: Context) {
         val slotShare = (1f - dateShare - weightShare) / slots.size
         writer.table(
             listOf(dateShare) + slots.map { slotShare } + listOf(weightShare),
-            listOf(context.getString(R.string.export_col_date)) + slots.map { context.getString(it.nameRes()) } + listOf(context.getString(R.string.export_col_weight)),
+            listOf(context.getString(R.string.export_col_date)) + slots.map { context.getString(it.nameRes(naming)) } + listOf(context.getString(R.string.export_col_weight)),
             days.sortedBy { it.date }.map { day ->
                 listOf(UiFormat.dayShort(day.date)) + slots.map { cell(day.slot(it)) } + listOf(day.weightGrams?.let(Measures::formatKg) ?: "")
             },

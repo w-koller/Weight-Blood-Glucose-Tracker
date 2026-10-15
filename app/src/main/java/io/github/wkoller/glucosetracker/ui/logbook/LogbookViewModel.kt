@@ -17,6 +17,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -126,11 +127,10 @@ class DayViewModel(container: AppContainer, handle: SavedStateHandle) : ViewMode
 
     val plan: StateFlow<Plan?> = repository.activePlan.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    private var lastDeleted: Any? = null
+    private val _lastDeleted = MutableStateFlow<Any?>(null)
 
-    fun updateReading(reading: GlucoseReading) = viewModelScope.launch { repository.updateReading(reading) }
-    fun updateDose(dose: DoseRecord) = viewModelScope.launch { repository.updateDose(dose) }
-    fun updateMeasurement(measurement: BodyMeasurement) = viewModelScope.launch { repository.updateMeasurement(measurement) }
+    /** The record deleted last, which Undo puts back. It stays until the user leaves the day. */
+    val lastDeleted: StateFlow<Any?> = _lastDeleted.asStateFlow()
 
     fun delete(record: Any) = viewModelScope.launch {
         when (record) {
@@ -138,15 +138,15 @@ class DayViewModel(container: AppContainer, handle: SavedStateHandle) : ViewMode
             is DoseRecord -> repository.deleteDose(record)
             is BodyMeasurement -> repository.deleteMeasurement(record)
         }
-        lastDeleted = record
+        _lastDeleted.value = record
     }
 
     fun undoDelete() = viewModelScope.launch {
-        when (val record = lastDeleted) {
+        when (val record = _lastDeleted.value) {
             is GlucoseReading -> repository.addReading(record)
             is DoseRecord -> repository.addDose(record)
             is BodyMeasurement -> repository.addMeasurement(record)
         }
-        lastDeleted = null
+        _lastDeleted.value = null
     }
 }

@@ -1,9 +1,11 @@
 package io.github.wkoller.glucosetracker.ui.checkin
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.wkoller.glucosetracker.AppContainer
+import io.github.wkoller.glucosetracker.R
 import io.github.wkoller.glucosetracker.domain.dosing.DoseAdvice
 import io.github.wkoller.glucosetracker.domain.dosing.DoseAdvisor
 import io.github.wkoller.glucosetracker.domain.dosing.DosePrompt
@@ -32,7 +34,15 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 
-enum class CheckInStep { BGL, LOW, RESULT, CORRECTION_AMOUNT, SKIP_REASON, MEDICINE, MEDICINE_AMOUNT, TABLETS, DONE }
+enum class CheckInStep { BGL, LOW, RESULT, CORRECTION_AMOUNT, SKIP_REASON, MEDICINE, MEDICINE_AMOUNT, TABLETS, DONE, NOTE }
+
+/** What the user had to bring a low level up. It is saved in the low reading's note for the doctor. */
+enum class LowTreatment(@StringRes val labelRes: Int, @StringRes val sentenceRes: Int) {
+    JUICE(R.string.low_treatment_juice, R.string.low_treated_juice),
+    JELLYBEANS(R.string.low_treatment_jellybeans, R.string.low_treated_jellybeans),
+    GLUCOSE(R.string.low_treatment_glucose, R.string.low_treated_glucose),
+    OTHER(R.string.low_treatment_other, R.string.low_treated_other),
+}
 
 data class DueMedicine(val medicine: ScheduledMedicine, val amount: Double)
 
@@ -68,6 +78,12 @@ data class CheckInUi(
     val recheckAt: Instant? = null,
     val nextStep: NextStep? = null,
     val busy: Boolean = false,
+    /** What was had for each low reading in this check-in, by reading id. */
+    val treatments: Map<Long, LowTreatment> = emptyMap(),
+    /** The note saved at the end of the check-in, and the text being typed for it. */
+    val note: String = "",
+    val noteText: String = "",
+    val noteReadingId: Long? = null,
 ) {
     val currentInsulin: DueMedicine? get() = dueInsulins.firstOrNull()
 }
@@ -354,6 +370,53 @@ class CheckInViewModel(private val container: AppContainer, handle: SavedStateHa
         _ui.update { it.copy(step = CheckInStep.DONE, nextStep = next) }
     }
 
+    // Notes
+
+    /** Saves what the user had for the low reading. Choosing again replaces the earlier choice. */
+    fun chooseTreatment(treatment: LowTreatment) = work {
+        val reading = _ui.value.reading ?: return@work
+        _ui.update { it.copy(treatments = it.treatments + (reading.id to treatment)) }
+        writeReadingNote(reading.id)
+    }
+
+    fun startNote() = _ui.update { it.copy(step = CheckInStep.NOTE, noteText = it.note) }
+
+    fun setNoteText(text: String) = _ui.update { it.copy(noteText = text) }
+
+    /** Saves the note with this check-in's latest reading, or with its first dose when there was no reading. */
+    fun saveNote() = work {
+        val state = _ui.value
+        val text = state.noteText.trim()
+        val readingId = state.readings.lastOrNull()?.id
+        _ui.update { it.copy(note = text, noteReadingId = readingId, step = CheckInStep.DONE) }
+        if (readingId != null) {
+            writeReadingNote(readingId)
+        } else {
+            val dose = state.recorded.firstOrNull() ?: return@work
+            val saved = dose.copy(note = text.ifBlank { null })
+            repository.updateDose(saved)
+            _ui.update { it.copy(recorded = it.recorded.map { d -> if (d.id == saved.id) saved else d }) }
+        }
+    }
+
+    /** A reading's note is what was had for a low, followed by anything the user typed. */
+    private suspend fun writeReadingNote(readingId: Long) {
+        val state = _ui.value
+        val reading = state.readings.firstOrNull { it.id == readingId } ?: return
+        val parts = listOfNotNull(
+            state.treatments[readingId]?.let { container.appContext.getString(it.sentenceRes) },
+            state.note.takeIf { state.noteReadingId == readingId && it.isNotBlank() },
+        )
+        val updated = reading.copy(note = parts.joinToString(" ").ifBlank { null })
+        repository.updateReading(updated)
+        _ui.update {
+            it.copy(
+                readings = it.readings.map { r -> if (r.id == readingId) updated else r },
+                reading = if (it.reading?.id == readingId) updated else it.reading,
+            )
+        }
+    }
+
     /** Returns false when the screen should close instead. */
     fun back(): Boolean {
         val state = _ui.value
@@ -362,6 +425,7 @@ class CheckInViewModel(private val container: AppContainer, handle: SavedStateHa
             CheckInStep.CORRECTION_AMOUNT -> CheckInStep.RESULT
             CheckInStep.MEDICINE_AMOUNT -> CheckInStep.MEDICINE
             CheckInStep.SKIP_REASON -> if (state.skipTarget is DoseTarget.Fixed) CheckInStep.MEDICINE else CheckInStep.RESULT
+            CheckInStep.NOTE -> CheckInStep.DONE
             // Once a dose is saved, going back could record it twice, so Back leaves the check-in instead.
             CheckInStep.BGL, CheckInStep.MEDICINE, CheckInStep.TABLETS, CheckInStep.DONE -> null
         } ?: return false

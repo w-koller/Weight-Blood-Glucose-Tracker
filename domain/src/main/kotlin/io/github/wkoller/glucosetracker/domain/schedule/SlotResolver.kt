@@ -52,6 +52,13 @@ object SlotResolver {
     fun logicalDate(plan: Plan, at: LocalDateTime): LocalDate =
         if (at.toLocalTime().minuteOfDay() < dayStartMinute(plan)) at.toLocalDate().minusDays(1) else at.toLocalDate()
 
+    /**
+     * The moment at [time] that belongs to the day [date], for a record added or changed later. A time
+     * before the day starts, such as 00:30 for a late bedtime check, falls just after that night's midnight.
+     */
+    fun momentOn(plan: Plan, date: LocalDate, time: LocalTime): LocalDateTime =
+        if (time.minuteOfDay() < dayStartMinute(plan)) LocalDateTime.of(date.plusDays(1), time) else LocalDateTime.of(date, time)
+
     /** Windows ordered from the start of the logical day. */
     fun windowsInDayOrder(plan: Plan): List<SlotWindow> {
         val dayStart = dayStartMinute(plan)

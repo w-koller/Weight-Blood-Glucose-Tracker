@@ -4,17 +4,17 @@ Weight & Glucose Tracker is an Android app that records weight, waist measuremen
 
 ## What the app does
 
-- **Guided checks.** The home screen always shows what to do next. A check asks for the BGL reading, shows the dose from the sliding scale, and records whether the dose was given. It then asks about any other medicines due at that time.
+- **Guided checks.** The home screen always shows what to do next. A check asks for the BGL reading, shows the dose from the sliding scale, and records whether the dose was given. It then asks about any other medicines due at that time, and offers to add a note for the doctor. Numbers are typed on a large keypad that stays on screen, like a phone keyboard, on small phones, at the largest text size and with the phone turned sideways.
 - **Your prescription as a plan.** The sliding scale, the check times, other medicines (such as a premixed insulin or tablets) and goals are entered once from the doctor's order. A personal identification number (PIN) can protect the plan. Each change is saved as a new version, and earlier records keep the version that was in place at the time.
-- **Safety prompts.** The app asks for confirmation when a dose is different from the prescription, when it falls outside the times on the order, or when a dose has already been recorded. A low reading shows what to do instead of a dose.
+- **Safety prompts.** The app asks for confirmation when a dose is different from the prescription, when it falls outside the times on the order, or when a dose has already been recorded. A low reading shows what to do instead of a dose, with buttons to call 000 or a support person, and asks what was had to bring the level up. When low readings happen on 2 or more occasions in a week, the home screen suggests telling the doctor or diabetes educator.
 - **Weight and waist.** Progress is shown against the starting weight and the goal, with the change since the last weigh-in.
-- **Logbook and progress.** A calendar shows each day in green when everything was recorded, yellow when some of it was, and red when nothing was. Records can be viewed by day, changed or deleted, and shown as charts.
+- **Logbook and progress.** A calendar shows each day in green when everything was recorded, yellow when some of it was, and red when nothing was. Records can be viewed by day, changed or deleted, and shown as charts. A record that was forgotten can be added afterwards, with the time it happened, and a deleted record can be put back with Undo.
 - **Reminders.** A reminder arrives at each check time, unless that check has already been recorded.
 - **Export for the doctor.** A PDF report or a spreadsheet (CSV) can be shared by email or another app.
 - **Backup and restore.** Records are part of the phone's Google backup when it is turned on. A backup file, with an optional password, can be saved to the phone or to cloud storage such as Google Drive, or shared. A new phone can restore from it on the first screen. A monthly reminder suggests saving a fresh backup file.
 - **Optional assistant.** Gemma 4, a language model that runs on the phone, can summarise records and answer questions about them. It does not give medical advice or work out doses.
 - **Your name.** An optional first and family name personalises the greeting and appears on reports for the doctor.
-- **Display and accessibility.** Five text sizes from Small to Largest, maximum contrast, a dark theme, simple mode, read-aloud results with a sample of each speed, and options to hide icons or extra explanations.
+- **Display and accessibility.** Five text sizes from Small to Largest, maximum contrast, a dark theme, simple mode, read-aloud results with a sample of each speed, and options to hide icons or extra explanations. The check times can be called Breakfast, Lunch, Dinner and Bedtime, or Morning, Afternoon, Evening and Night.
 - **Voices.** Results are read aloud in the phone's default voice, or another voice chosen in **Settings › Display and accessibility › Choose a voice**. The **Read this aloud** button changes to **Stop reading aloud** while a result is being read, and leaving the screen also stops the voice. Optional natural voices (a 98 MB download, with American and British accents) sound more like a person speaking. The first setup offers both downloads.
 
 ## Important

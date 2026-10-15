@@ -13,6 +13,7 @@ import io.github.wkoller.glucosetracker.domain.assistant.QuestionKind
 import io.github.wkoller.glucosetracker.domain.model.DoseRecord
 import io.github.wkoller.glucosetracker.domain.model.GlucoseReading
 import io.github.wkoller.glucosetracker.domain.model.Plan
+import io.github.wkoller.glucosetracker.domain.model.SlotNaming
 import io.github.wkoller.glucosetracker.domain.readout.ReadoutBuilder
 import io.github.wkoller.glucosetracker.domain.readout.ReadoutFacts
 import io.github.wkoller.glucosetracker.domain.readout.ReadoutPeriod
@@ -32,6 +33,7 @@ data class AssistantContext(
     val readings: List<GlucoseReading>,
     val doses: List<DoseRecord>,
     val firstName: String? = null,
+    val slotNaming: SlotNaming = SlotNaming.MEALS,
 ) {
     fun facts(period: ReadoutPeriod) = if (period == ReadoutPeriod.TODAY) todayFacts else weekFacts
 }
@@ -70,6 +72,7 @@ class AssistantService(
         val readings = repository.readingsBetween(from, today)
         val doses = repository.dosesBetween(from, today)
         val measurements = repository.allMeasurements()
+        val current = settings.current()
         return AssistantContext(
             plan = plan,
             today = today,
@@ -77,7 +80,8 @@ class AssistantService(
             weekFacts = ReadoutBuilder.build(ReadoutPeriod.WEEK, plan, today, readings, doses, measurements),
             readings = readings,
             doses = doses,
-            firstName = settings.current().firstName.ifBlank { null },
+            firstName = current.firstName.ifBlank { null },
+            slotNaming = current.slotNaming,
         )
     }
 
@@ -102,7 +106,7 @@ class AssistantService(
     private fun generate(context: AssistantContext, prompt: String, history: List<Pair<String, String>>): Flow<AssistantReply> = channelFlow {
         if (!models.isLoaded) send(AssistantReply.Loading)
         val system = PromptBuilder.systemPrompt(context.plan, context.firstName) + "\n\n" +
-            PromptBuilder.factsBlock(context.plan, context.weekFacts, context.today, context.readings, context.doses)
+            PromptBuilder.factsBlock(context.plan, context.weekFacts, context.today, context.readings, context.doses, context.slotNaming)
         val allowed = PromptBuilder.allowedAmounts(context.plan, context.doses)
         try {
             models.withEngine { engine ->

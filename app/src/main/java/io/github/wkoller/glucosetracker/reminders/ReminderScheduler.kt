@@ -14,6 +14,7 @@ import io.github.wkoller.glucosetracker.data.TrackerRepository
 import io.github.wkoller.glucosetracker.data.prefs.SettingsStore
 import io.github.wkoller.glucosetracker.domain.model.Plan
 import io.github.wkoller.glucosetracker.domain.model.Slot
+import io.github.wkoller.glucosetracker.domain.model.SlotNaming
 import io.github.wkoller.glucosetracker.domain.schedule.NextStepEngine
 import io.github.wkoller.glucosetracker.domain.schedule.SlotState
 import io.github.wkoller.glucosetracker.ui.components.phraseRes
@@ -69,11 +70,11 @@ class ReminderScheduler(
         val day = repository.dayRecords(repository.logicalToday(plan))
         val state = NextStepEngine.progress(plan, now, day).firstOrNull { it.slot == slot }?.state
         if (state == SlotState.DONE) return
-        showCheckReminder(plan, slot)
+        showCheckReminder(plan, slot, settings.current().slotNaming)
     }
 
-    fun showCheckReminder(plan: Plan, slot: Slot) {
-        val phrase = context.getString(slot.phraseRes())
+    fun showCheckReminder(plan: Plan, slot: Slot, naming: SlotNaming) {
+        val phrase = context.getString(slot.phraseRes(naming))
         val checks = plan.schedule(slot)?.checkBgl == true
         val title = context.getString(if (checks) R.string.reminder_check_title else R.string.reminder_medicines_title)
         val body = context.getString(if (checks) R.string.reminder_check_body else R.string.reminder_medicines_body, phrase)

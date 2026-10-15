@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import io.github.wkoller.glucosetracker.domain.model.SlotNaming
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -41,8 +42,17 @@ data class Settings(
     val lastBackupAt: Long = 0,
     val backupReminderOn: Boolean = true,
     val lastBackupReminderAt: Long = 0,
+    /** Whether the check times are called after meals or after the time of day. */
+    val slotNaming: SlotNaming = SlotNaming.MEALS,
+    /** Someone to call after a low reading. The low-reading screen offers to ring them when a number is entered. */
+    val supportName: String = "",
+    val supportPhone: String = "",
+    /** When the user last acknowledged the repeated-lows notice, in epoch milliseconds, or 0 if never. */
+    val lowNoticeAckAt: Long = 0,
 ) {
     val hasPin: Boolean get() = pinHash != null && pinSalt != null
+
+    val hasSupportPerson: Boolean get() = supportPhone.any { it.isDigit() }
 
     /** The full name for reports, or null when no name was entered. */
     val fullName: String? get() = listOf(firstName, familyName).filter { it.isNotBlank() }.joinToString(" ").ifBlank { null }
@@ -74,6 +84,10 @@ class SettingsStore(private val context: Context) {
         val lastBackupAt = longPreferencesKey("last_backup_at")
         val backupReminderOn = booleanPreferencesKey("backup_reminder_on")
         val lastBackupReminderAt = longPreferencesKey("last_backup_reminder_at")
+        val slotNaming = stringPreferencesKey("slot_naming")
+        val supportName = stringPreferencesKey("support_name")
+        val supportPhone = stringPreferencesKey("support_phone")
+        val lowNoticeAckAt = longPreferencesKey("low_notice_ack_at")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { it.toSettings() }
@@ -108,6 +122,10 @@ class SettingsStore(private val context: Context) {
             lastBackupAt = this[Keys.lastBackupAt] ?: defaults.lastBackupAt,
             backupReminderOn = this[Keys.backupReminderOn] ?: defaults.backupReminderOn,
             lastBackupReminderAt = this[Keys.lastBackupReminderAt] ?: defaults.lastBackupReminderAt,
+            slotNaming = this[Keys.slotNaming]?.let { runCatching { SlotNaming.valueOf(it) }.getOrNull() } ?: defaults.slotNaming,
+            supportName = this[Keys.supportName] ?: defaults.supportName,
+            supportPhone = this[Keys.supportPhone] ?: defaults.supportPhone,
+            lowNoticeAckAt = this[Keys.lowNoticeAckAt] ?: defaults.lowNoticeAckAt,
         )
     }
 
@@ -138,5 +156,9 @@ class SettingsStore(private val context: Context) {
         this[Keys.lastBackupAt] = s.lastBackupAt
         this[Keys.backupReminderOn] = s.backupReminderOn
         this[Keys.lastBackupReminderAt] = s.lastBackupReminderAt
+        this[Keys.slotNaming] = s.slotNaming.name
+        this[Keys.supportName] = s.supportName.trim()
+        this[Keys.supportPhone] = s.supportPhone.trim()
+        this[Keys.lowNoticeAckAt] = s.lowNoticeAckAt
     }
 }

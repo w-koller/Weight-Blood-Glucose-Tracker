@@ -31,12 +31,9 @@ STRINGS = {
     "setup_assistant_chosen_no": "The assistant is not set up. You can set it up later in Settings.",
 
     "setup_scale_empty": "Start with an empty table",
-    "setup_scale_up_to": "%1$s up to",
-    "setup_scale_above_unknown": "Above the last range",
     "setup_scale_upper_description": "Top of the range that starts at %1$s mmol/L",
     "setup_scale_units_description": "Units of %1$s for %2$s to %3$s mmol/L",
     "setup_scale_units_description_last": "Units of %1$s above %2$s mmol/L",
-    "setup_scale_units_of": "units of %1$s",
     "setup_scale_common_confirm_title": "Replace your table?",
     "setup_scale_common_confirm": "The common scale will replace the rows you have typed. Would you like to continue?",
     "scale_row_name_range": "the row that starts at %1$s mmol/L",

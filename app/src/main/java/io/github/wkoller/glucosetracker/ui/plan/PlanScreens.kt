@@ -39,14 +39,14 @@ import io.github.wkoller.glucosetracker.ui.components.ConfirmDialog
 import io.github.wkoller.glucosetracker.ui.components.FactRow
 import io.github.wkoller.glucosetracker.ui.components.NoticeCard
 import io.github.wkoller.glucosetracker.ui.components.NoticeKind
-import io.github.wkoller.glucosetracker.ui.components.NumberPad
+import io.github.wkoller.glucosetracker.ui.components.NumberEntryScaffold
 import io.github.wkoller.glucosetracker.ui.components.ScaleTable
 import io.github.wkoller.glucosetracker.ui.components.ScreenScaffold
 import io.github.wkoller.glucosetracker.ui.components.SectionCard
 import io.github.wkoller.glucosetracker.ui.components.StepScaffold
-import io.github.wkoller.glucosetracker.ui.components.ValueDisplay
 import io.github.wkoller.glucosetracker.ui.components.labelRes
-import io.github.wkoller.glucosetracker.ui.components.nameRes
+import io.github.wkoller.glucosetracker.ui.components.label
+import io.github.wkoller.glucosetracker.ui.theme.LocalUiPrefs
 import kotlinx.coroutines.launch
 
 /** The current plan, read-only, with the ways to change it. */
@@ -129,14 +129,14 @@ fun ColumnScope.PlanSummary(plan: Plan) {
                 stringResource(if (slot.correctionPrescribed) R.string.review_prescribed_on else R.string.review_prescribed_off, plan.correctionInsulin),
                 stringResource(if (slot.reminderOn) R.string.review_reminder_on else R.string.review_reminder_off),
             )
-            FactRow(stringResource(slot.slot.nameRes()), parts.joinToString("\n"))
+            FactRow(slot.slot.label(), parts.joinToString("\n"))
         }
     }
     SectionCard(stringResource(R.string.setup_medicines_title)) {
         if (plan.medicines.isEmpty()) Text(stringResource(R.string.setup_medicines_none), style = MaterialTheme.typography.bodyLarge)
         plan.medicines.forEach { medicine ->
             val lines = medicine.doses.map { (slot, amount) ->
-                stringResource(R.string.review_medicine_line, stringResource(slot.nameRes()), UiFormat.dose(context, amount, medicine.kind, medicine.unit))
+                stringResource(R.string.review_medicine_line, slot.label(), UiFormat.dose(context, amount, medicine.kind, medicine.unit))
             }
             FactRow(medicine.displayName, lines.joinToString("\n"))
         }
@@ -176,7 +176,7 @@ fun PlanHistoryScreen(onBack: () -> Unit) {
                 if (previous == null) {
                     Text(stringResource(R.string.plan_history_started), style = MaterialTheme.typography.bodyLarge)
                 } else {
-                    PlanChanges.describe(context, previous, plan).ifEmpty { listOf(stringResource(R.string.change_none_body)) }
+                    PlanChanges.describe(context, previous, plan, LocalUiPrefs.current.slotNaming).ifEmpty { listOf(stringResource(R.string.change_none_body)) }
                         .forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
                 }
             }
@@ -204,22 +204,25 @@ fun UnlockScreen(onBack: () -> Unit, onUnlocked: () -> Unit) {
             stepCount = 0,
             title = stringResource(R.string.unlock_title),
             onBack = onBack,
-            actions = {
-                BigButton(stringResource(R.string.continue_label), onClick = onUnlocked)
-                BigButton(stringResource(R.string.cancel), onClick = onBack, style = ButtonStyle.SECONDARY)
-            },
+            actions = { BigButton(stringResource(R.string.continue_label), onClick = onUnlocked) },
+            moreActions = { BigButton(stringResource(R.string.cancel), onClick = onBack, style = ButtonStyle.SECONDARY) },
         ) {
             Text(stringResource(R.string.unlock_no_pin_body), style = MaterialTheme.typography.bodyLarge)
         }
         return
     }
 
-    StepScaffold(
-        step = 0,
-        stepCount = 0,
+    NumberEntryScaffold(
         title = stringResource(R.string.unlock_pin_title),
         onBack = onBack,
-        actions = {
+        value = pin,
+        display = "●".repeat(pin.length),
+        unit = "",
+        onValueChange = { pin = it.take(4); wrong = false },
+        error = if (wrong) stringResource(R.string.pin_wrong) else null,
+        maxDecimals = 0,
+        maxIntegerDigits = 4,
+        action = {
             BigButton(stringResource(R.string.unlock_button), onClick = {
                 if (PinHasher.matches(pin, current.pinSalt!!, current.pinHash!!)) {
                     onUnlocked()
@@ -228,12 +231,9 @@ fun UnlockScreen(onBack: () -> Unit, onUnlocked: () -> Unit) {
                     pin = ""
                 }
             })
-            BigButton(stringResource(R.string.pin_forgot), onClick = { resetting = true }, style = ButtonStyle.SECONDARY)
         },
     ) {
-        if (wrong) NoticeCard(NoticeKind.DANGER, stringResource(R.string.pin_wrong_title), stringResource(R.string.pin_wrong))
-        ValueDisplay("●".repeat(pin.length), "")
-        NumberPad(pin, { pin = it.take(4); wrong = false }, maxDecimals = 0, maxIntegerDigits = 4)
+        BigButton(stringResource(R.string.pin_forgot), onClick = { resetting = true }, style = ButtonStyle.SECONDARY)
     }
     if (resetting) {
         ConfirmDialog(

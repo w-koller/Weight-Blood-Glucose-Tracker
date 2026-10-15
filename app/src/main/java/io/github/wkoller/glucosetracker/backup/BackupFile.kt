@@ -11,6 +11,7 @@ import io.github.wkoller.glucosetracker.data.db.ScaleBandEntity
 import io.github.wkoller.glucosetracker.data.prefs.Settings
 import io.github.wkoller.glucosetracker.data.prefs.TextSize
 import io.github.wkoller.glucosetracker.data.prefs.ThemeChoice
+import io.github.wkoller.glucosetracker.domain.model.SlotNaming
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -161,6 +162,8 @@ object BackupFile {
         .put("readAloud", s.readAloud).put("speechRate", s.speechRate.toDouble()).put("haptics", s.haptics).put("reduceMotion", s.reduceMotion)
         .put("remindersOn", s.remindersOn).put("pinHash", s.pinHash ?: JSONObject.NULL).put("pinSalt", s.pinSalt ?: JSONObject.NULL)
         .put("firstName", s.firstName).put("familyName", s.familyName).put("voice", s.voice).put("backupReminderOn", s.backupReminderOn)
+        .put("slotNaming", s.slotNaming.name).put("supportName", s.supportName).put("supportPhone", s.supportPhone)
+        .put("lowNoticeAckAt", s.lowNoticeAckAt)
 
     private fun backupFrom(file: JSONObject, d: JSONObject): Backup {
         fun JSONObject.intOrNull(name: String): Int? = if (isNull(name)) null else getInt(name)
@@ -232,6 +235,10 @@ object BackupFile {
             familyName = s.optString("familyName", ""),
             voice = s.optString("voice", ""),
             backupReminderOn = s.optBoolean("backupReminderOn", defaults.backupReminderOn),
+            slotNaming = runCatching { SlotNaming.valueOf(s.getString("slotNaming")) }.getOrDefault(defaults.slotNaming),
+            supportName = s.optString("supportName", ""),
+            supportPhone = s.optString("supportPhone", ""),
+            lowNoticeAckAt = s.optLong("lowNoticeAckAt", defaults.lowNoticeAckAt),
         )
         return Backup(file.getLong("createdAt"), file.optString("appVersion"), contents, settings)
     }

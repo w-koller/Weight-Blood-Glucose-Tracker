@@ -15,6 +15,7 @@ import io.github.wkoller.glucosetracker.domain.model.DoseStatus
 import io.github.wkoller.glucosetracker.domain.model.GlucoseReading
 import io.github.wkoller.glucosetracker.domain.model.MedicineKind
 import io.github.wkoller.glucosetracker.domain.model.Slot
+import io.github.wkoller.glucosetracker.domain.model.SlotNaming
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -45,7 +46,12 @@ class BackupTest {
         )
         repository.addMeasurement(BodyMeasurement(0, repository.instant(), date, 116_300, 1_150, null))
         repository.savePlanVersion(first.copy(correctionInsulin = "Fiasp"))
-        container.settingsStore.update { it.copy(setupDone = true, firstName = "Mary", textSize = TextSize.EXTRA_LARGE, voice = "natural:7") }
+        container.settingsStore.update {
+            it.copy(
+                setupDone = true, firstName = "Mary", textSize = TextSize.EXTRA_LARGE, voice = "natural:7",
+                slotNaming = SlotNaming.TIMES_OF_DAY, supportName = "Anne", supportPhone = "0400 000 000",
+            )
+        }
     }
 
     private fun wipe() = runBlocking {
@@ -73,6 +79,9 @@ class BackupTest {
         assertEquals("Mary", settings.firstName)
         assertEquals(TextSize.EXTRA_LARGE, settings.textSize)
         assertEquals("natural:7", settings.voice)
+        assertEquals(SlotNaming.TIMES_OF_DAY, settings.slotNaming)
+        assertEquals("Anne", settings.supportName)
+        assertEquals("0400 000 000", settings.supportPhone)
         assertTrue(settings.setupDone)
         assertEquals("Fiasp", runBlocking { container.repository.currentPlan()!!.correctionInsulin })
     }

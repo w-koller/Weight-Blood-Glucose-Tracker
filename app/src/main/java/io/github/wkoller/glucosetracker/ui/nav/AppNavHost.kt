@@ -23,6 +23,7 @@ import io.github.wkoller.glucosetracker.ui.home.HomeActions
 import io.github.wkoller.glucosetracker.ui.home.HomeScreen
 import io.github.wkoller.glucosetracker.ui.logbook.DayScreen
 import io.github.wkoller.glucosetracker.ui.logbook.LogbookScreen
+import io.github.wkoller.glucosetracker.ui.logbook.RecordEditorScreen
 import io.github.wkoller.glucosetracker.ui.measure.MeasureScreen
 import io.github.wkoller.glucosetracker.ui.medicines.MedicinesScreen
 import io.github.wkoller.glucosetracker.ui.plan.PinSettingsScreen
@@ -37,6 +38,7 @@ import io.github.wkoller.glucosetracker.ui.settings.AboutScreen
 import io.github.wkoller.glucosetracker.ui.settings.DisplaySettingsScreen
 import io.github.wkoller.glucosetracker.ui.settings.SettingsActions
 import io.github.wkoller.glucosetracker.ui.settings.SettingsScreen
+import io.github.wkoller.glucosetracker.ui.settings.SupportPersonScreen
 import io.github.wkoller.glucosetracker.ui.settings.VoiceScreen
 import io.github.wkoller.glucosetracker.ui.theme.LocalUiPrefs
 
@@ -64,11 +66,15 @@ object Routes {
     const val ABOUT = "settings/about"
     const val VOICE = "settings/voice"
     const val BACKUP = "settings/backup"
+    const val SUPPORT = "settings/support"
+    const val RECORD = "record?date={date}&kind={kind}&id={id}"
 
     fun setup(mode: SetupMode) = "setup?mode=${mode.name}"
     fun checkIn(slot: Slot?, medicinesOnly: Boolean = false) = "checkin?slot=${slot?.name ?: ""}&medsOnly=$medicinesOnly"
     fun measure(what: String) = "measure?what=$what"
     fun day(date: String) = "day/$date"
+    fun editRecord(date: String, kind: String, id: Long) = "record?date=$date&kind=$kind&id=$id"
+    fun addRecord(date: String) = "record?date=$date&kind=&id=0"
     fun unlock(next: SetupMode) = "unlock?next=${next.name}"
 }
 
@@ -156,7 +162,22 @@ fun AppNavHost(
             )
         }
         composable(Routes.LOGBOOK) { LogbookScreen(onBack = back, onDay = { navController.navigate(Routes.day(it.toString())) }) }
-        composable(Routes.DAY, arguments = listOf(navArgument("date") { type = NavType.StringType })) { DayScreen(onBack = back) }
+        composable(Routes.DAY, arguments = listOf(navArgument("date") { type = NavType.StringType })) { entry ->
+            val date = entry.arguments?.getString("date").orEmpty()
+            DayScreen(
+                onBack = back,
+                onEdit = { kind, id -> navController.navigate(Routes.editRecord(date, kind, id)) },
+                onAdd = { navController.navigate(Routes.addRecord(date)) },
+            )
+        }
+        composable(
+            Routes.RECORD,
+            arguments = listOf(
+                navArgument("date") { type = NavType.StringType },
+                navArgument("kind") { type = NavType.StringType; defaultValue = "" },
+                navArgument("id") { type = NavType.StringType; defaultValue = "0" },
+            ),
+        ) { RecordEditorScreen(onClose = back) }
         composable(Routes.PROGRESS) { ProgressScreen(onBack = back) }
         composable(Routes.MEDICINES) {
             MedicinesScreen(onBack = back, onRecord = { navController.navigate(Routes.checkIn(it, medicinesOnly = true)) })
@@ -178,6 +199,7 @@ fun AppNavHost(
                     assistant = { navController.navigate(Routes.ASSISTANT_SETTINGS) },
                     export = { navController.navigate(Routes.EXPORT) },
                     backup = { navController.navigate(Routes.BACKUP) },
+                    support = { navController.navigate(Routes.SUPPORT) },
                     about = { navController.navigate(Routes.ABOUT) },
                 ),
             )
@@ -185,6 +207,7 @@ fun AppNavHost(
         composable(Routes.DISPLAY) { DisplaySettingsScreen(onBack = back, onChooseVoice = { navController.navigate(Routes.VOICE) }) }
         composable(Routes.VOICE) { VoiceScreen(onBack = back) }
         composable(Routes.BACKUP) { BackupScreen(onBack = back) }
+        composable(Routes.SUPPORT) { SupportPersonScreen(onBack = back) }
         composable(Routes.PLAN) {
             PlanScreen(
                 onBack = back,

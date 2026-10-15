@@ -8,6 +8,7 @@ import io.github.wkoller.glucosetracker.domain.model.GlucoseReading
 import io.github.wkoller.glucosetracker.domain.model.MeterFlag
 import io.github.wkoller.glucosetracker.domain.model.Plan
 import io.github.wkoller.glucosetracker.domain.model.Slot
+import io.github.wkoller.glucosetracker.domain.model.SlotNaming
 import io.github.wkoller.glucosetracker.domain.progress.Progress
 import io.github.wkoller.glucosetracker.domain.readout.ReadoutFacts
 import io.github.wkoller.glucosetracker.domain.readout.ReadoutPeriod
@@ -47,7 +48,9 @@ object PromptBuilder {
         today: LocalDate,
         readings: List<GlucoseReading>,
         doses: List<DoseRecord>,
+        naming: SlotNaming = SlotNaming.MEALS,
     ): String = buildString {
+        fun slotName(slot: Slot) = slotName(slot, naming)
         appendLine("FACTS (today is ${today.format(dayFormat)})")
         appendLine("Target BGL range: ${Measures.formatTenths(plan.targets.lowTenths)} to ${Measures.formatTenths(plan.targets.highTenths)} mmol/L. Low is below ${Measures.formatTenths(plan.targets.hypoTenths)} mmol/L.")
         appendLine("Sliding scale for ${plan.correctionInsulin}:")
@@ -75,7 +78,7 @@ object PromptBuilder {
         appendLine("Daily records for the last 14 days:")
         val from = today.minusDays(13)
         generateSequence(today) { it.minusDays(1) }.takeWhile { !it.isBefore(from) }.forEach { date ->
-            val line = dayLine(plan, date, readings.filter { it.date == date }, doses.filter { it.date == date })
+            val line = dayLine(date, readings.filter { it.date == date }, doses.filter { it.date == date }, naming)
             if (line != null) appendLine("- ${date.format(dayFormat)}: $line")
         }
     }
@@ -94,7 +97,7 @@ object PromptBuilder {
         add(doses.filter { it.kind == DoseKind.CORRECTION && it.status == DoseStatus.GIVEN }.sumOf { it.givenAmount ?: 0.0 })
     }
 
-    private fun dayLine(plan: Plan, date: LocalDate, readings: List<GlucoseReading>, doses: List<DoseRecord>): String? {
+    private fun dayLine(date: LocalDate, readings: List<GlucoseReading>, doses: List<DoseRecord>, naming: SlotNaming): String? {
         if (readings.isEmpty() && doses.isEmpty()) return null
         val parts = Slot.entries.mapNotNull { slot ->
             val slotReadings = readings.filter { it.slot == slot }.sortedBy { it.takenAt }
@@ -102,7 +105,7 @@ object PromptBuilder {
             if (slotReadings.isEmpty() && slotDoses.isEmpty()) return@mapNotNull null
             val bgl = slotReadings.joinToString(" then ") { readingText(it) }
             val doseText = slotDoses.joinToString("; ") { doseText(it) }
-            "${slotName(slot)} ${listOf(bgl, doseText).filter { it.isNotBlank() }.joinToString(", ")}"
+            "${slotName(slot, naming)} ${listOf(bgl, doseText).filter { it.isNotBlank() }.joinToString(", ")}"
         }
         return parts.joinToString(" | ").ifBlank { null }
     }
@@ -129,11 +132,21 @@ object PromptBuilder {
 
     private fun signed(grams: Int): String = (if (grams > 0) "+" else if (grams < 0) "-" else "") + Measures.formatKgChange(grams)
 
-    private fun slotName(slot: Slot): String = when (slot) {
-        Slot.BREAKFAST -> "before breakfast"
-        Slot.LUNCH -> "before lunch"
-        Slot.DINNER -> "before dinner"
-        Slot.BEDTIME -> "bedtime"
-        Slot.OTHER -> "other times"
+    /** The same words the person sees in the app, so the model's answers match the screens. */
+    private fun slotName(slot: Slot, naming: SlotNaming): String = when (naming) {
+        SlotNaming.MEALS -> when (slot) {
+            Slot.BREAKFAST -> "before breakfast"
+            Slot.LUNCH -> "before lunch"
+            Slot.DINNER -> "before dinner"
+            Slot.BEDTIME -> "bedtime"
+            Slot.OTHER -> "other times"
+        }
+        SlotNaming.TIMES_OF_DAY -> when (slot) {
+            Slot.BREAKFAST -> "morning"
+            Slot.LUNCH -> "afternoon"
+            Slot.DINNER -> "evening"
+            Slot.BEDTIME -> "night"
+            Slot.OTHER -> "other times"
+        }
     }
 }

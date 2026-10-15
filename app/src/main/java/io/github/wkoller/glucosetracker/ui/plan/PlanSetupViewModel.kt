@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.wkoller.glucosetracker.AppContainer
 import io.github.wkoller.glucosetracker.data.prefs.PinHasher
+import io.github.wkoller.glucosetracker.domain.dosing.SlidingScale
 import io.github.wkoller.glucosetracker.domain.format.Measures
 import io.github.wkoller.glucosetracker.domain.model.Plan
 import io.github.wkoller.glucosetracker.domain.model.Slot
@@ -26,6 +27,22 @@ private val FIRST_RUN_ONLY = setOf(SetupStep.WELCOME, SetupStep.ABOUT_YOU, Setup
 
 enum class PinError { INVALID, MISMATCH }
 
+enum class BandField { UPPER, UNITS }
+
+/** A problem with the one number on the scale keypad, shown beside the keys. */
+sealed interface BandProblem {
+    data object Missing : BandProblem
+    data class NotAbove(val previous: String) : BandProblem
+    data object UpperOutOfRange : BandProblem
+    data object UnitsOutOfRange : BandProblem
+}
+
+/**
+ * One number of the sliding scale being typed on the keypad. When [guided], Next moves on through
+ * the rest of the table, as when the user starts from an empty table; otherwise it changes one row.
+ */
+data class BandEdit(val index: Int, val field: BandField, val text: String, val guided: Boolean, val problem: BandProblem? = null)
+
 data class SetupUi(
     val loading: Boolean = true,
     val mode: SetupMode = SetupMode.FIRST,
@@ -35,6 +52,7 @@ data class SetupUi(
     val errors: List<DraftError> = emptyList(),
     val returnToReview: Boolean = false,
     val editingMedicine: MedicineDraft? = null,
+    val editingBand: BandEdit? = null,
     val medicineErrors: List<DraftError> = emptyList(),
     val pin: String = "",
     val pinConfirm: String = "",
@@ -42,6 +60,8 @@ data class SetupUi(
     val chosenPin: String? = null,
     val firstName: String = "",
     val familyName: String = "",
+    val supportName: String = "",
+    val supportPhone: String = "",
     /** Whether to download the assistant model after setup. Null until the user chooses. */
     val downloadModel: Boolean? = null,
     /** True when the user agreed to download the model over mobile data. */
@@ -91,6 +111,8 @@ class PlanSetupViewModel(private val container: AppContainer, handle: SavedState
                     loading = false,
                     firstName = settings.firstName,
                     familyName = settings.familyName,
+                    supportName = settings.supportName,
+                    supportPhone = settings.supportPhone,
                     steps = steps,
                     step = if (mode == SetupMode.EDIT) SetupStep.REVIEW else steps.first(),
                     draft = draft,
@@ -107,10 +129,77 @@ class PlanSetupViewModel(private val container: AppContainer, handle: SavedState
 
     fun useCommonScale() = editBands { PlanDraft.commonBands() }
 
-    fun startEmptyTable() = editBands { PlanDraft.emptyBands() }
+    /** Starts an empty table and walks through it on the keypad, one number at a time. */
+    fun startEmptyTable() {
+        editBands { PlanDraft.emptyBands() }
+        _ui.update { it.copy(editingBand = BandEdit(0, BandField.UPPER, "", guided = true)) }
+    }
 
-    /** Adds a range just above the open top row. */
-    fun addBand() = editBands { bands -> if (bands.isEmpty()) PlanDraft.emptyBands() else bands.dropLast(1) + BandDraft("", "") + bands.last() }
+    /** Adds a range just above the open top row, and opens the keypad for it. */
+    fun addBand() {
+        editBands { bands -> if (bands.isEmpty()) PlanDraft.emptyBands() else bands.dropLast(1) + BandDraft("", "") + bands.last() }
+        startBand(_ui.value.draft.bands.size - 2)
+    }
+
+    /** Opens the keypad for one row: the top of its range, then its units. The open top row has units only. */
+    fun startBand(index: Int) = _ui.update { state ->
+        val band = state.draft.bands.getOrNull(index) ?: return@update state
+        val field = if (index == state.draft.bands.lastIndex) BandField.UNITS else BandField.UPPER
+        state.copy(editingBand = BandEdit(index, field, if (field == BandField.UPPER) band.upper else band.units, guided = false), errors = emptyList())
+    }
+
+    fun setBandText(text: String) = _ui.update { it.copy(editingBand = it.editingBand?.copy(text = text, problem = null)) }
+
+    /** Back to the table. Numbers already accepted with Next stay in it. */
+    fun closeBand() = _ui.update { it.copy(editingBand = null) }
+
+    fun nextBand() {
+        val state = _ui.value
+        val edit = state.editingBand ?: return
+        val problem = bandProblem(state.draft, edit)
+        if (problem != null) {
+            _ui.update { it.copy(editingBand = edit.copy(problem = problem)) }
+            return
+        }
+        val band = state.draft.bands[edit.index]
+        setBand(edit.index, if (edit.field == BandField.UPPER) band.copy(upper = edit.text.trimEnd('.')) else band.copy(units = edit.text))
+        val bands = _ui.value.draft.bands
+        val following = when {
+            edit.field == BandField.UPPER -> BandEdit(edit.index, BandField.UNITS, bands[edit.index].units, edit.guided)
+            edit.guided && edit.index < bands.lastIndex -> {
+                val index = edit.index + 1
+                if (index == bands.lastIndex) {
+                    BandEdit(index, BandField.UNITS, bands[index].units, guided = true)
+                } else {
+                    BandEdit(index, BandField.UPPER, bands[index].upper, guided = true)
+                }
+            }
+            else -> null
+        }
+        _ui.update { it.copy(editingBand = following) }
+    }
+
+    /** Checks one number as it is entered, so a mistake is caught beside the keypad rather than later in the table. */
+    private fun bandProblem(draft: PlanDraft, edit: BandEdit): BandProblem? = when (edit.field) {
+        BandField.UPPER -> {
+            val tenths = Measures.parseScaled(edit.text, 1)?.toInt()
+            val previous = draft.bands.getOrNull(edit.index - 1)?.upper?.let { Measures.parseScaled(it, 1)?.toInt() }
+            when {
+                tenths == null -> BandProblem.Missing
+                tenths !in 1..SlidingScale.MAX_UPPER_TENTHS -> BandProblem.UpperOutOfRange
+                previous != null && tenths <= previous -> BandProblem.NotAbove(Measures.formatTenthsShort(previous))
+                else -> null
+            }
+        }
+        BandField.UNITS -> {
+            val units = edit.text.toIntOrNull()
+            when {
+                units == null -> BandProblem.Missing
+                units !in 0..SlidingScale.MAX_UNITS -> BandProblem.UnitsOutOfRange
+                else -> null
+            }
+        }
+    }
 
     /** Removes the last range before the open top row, keeping at least one range. */
     fun removeBand() = editBands { bands -> if (bands.size > 2) bands.dropLast(2) + bands.last() else bands }
@@ -149,6 +238,10 @@ class PlanSetupViewModel(private val container: AppContainer, handle: SavedState
     fun setFirstName(name: String) = _ui.update { it.copy(firstName = name) }
 
     fun setFamilyName(name: String) = _ui.update { it.copy(familyName = name) }
+
+    fun setSupportName(name: String) = _ui.update { it.copy(supportName = name) }
+
+    fun setSupportPhone(phone: String) = _ui.update { it.copy(supportPhone = phone) }
 
     fun chooseAssistant(download: Boolean, overMobile: Boolean = false) {
         _ui.update { it.copy(downloadModel = download, modelOverMobile = download && overMobile) }
@@ -209,6 +302,10 @@ class PlanSetupViewModel(private val container: AppContainer, handle: SavedState
     /** Returns false when there is no earlier step, so the screen can close. */
     fun back(): Boolean {
         val state = _ui.value
+        if (state.editingBand != null) {
+            closeBand()
+            return true
+        }
         if (state.editingMedicine != null) {
             cancelMedicine()
             return true
@@ -241,7 +338,10 @@ class PlanSetupViewModel(private val container: AppContainer, handle: SavedState
         }
         val old = original
         if (mode == SetupMode.EDIT && old != null) {
-            _ui.update { it.copy(changes = PlanChanges.describe(container.appContext, old, draft.toPlan())) }
+            viewModelScope.launch {
+                val naming = container.settingsStore.current().slotNaming
+                _ui.update { it.copy(changes = PlanChanges.describe(container.appContext, old, draft.toPlan(), naming)) }
+            }
         } else {
             save()
         }
@@ -265,7 +365,12 @@ class PlanSetupViewModel(private val container: AppContainer, handle: SavedState
                     settings
                 }
                 val withName = if (state.mode == SetupMode.FIRST) {
-                    withPin.copy(firstName = state.firstName.trim(), familyName = state.familyName.trim())
+                    withPin.copy(
+                        firstName = state.firstName.trim(),
+                        familyName = state.familyName.trim(),
+                        supportName = state.supportName.trim(),
+                        supportPhone = state.supportPhone.trim(),
+                    )
                 } else {
                     withPin
                 }

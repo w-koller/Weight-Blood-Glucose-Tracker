@@ -28,7 +28,7 @@ import io.github.wkoller.glucosetracker.ui.components.OptionRow
 import io.github.wkoller.glucosetracker.ui.components.ScreenScaffold
 import io.github.wkoller.glucosetracker.ui.components.SectionCard
 import io.github.wkoller.glucosetracker.ui.components.TrendChart
-import io.github.wkoller.glucosetracker.ui.components.nameRes
+import io.github.wkoller.glucosetracker.ui.components.label
 import io.github.wkoller.glucosetracker.ui.theme.LocalStatusColors
 import java.time.Instant
 import java.time.ZoneId
@@ -112,7 +112,7 @@ fun ProgressScreen(onBack: () -> Unit) {
                 Text(stringResource(R.string.progress_by_time), style = MaterialTheme.typography.titleMedium)
                 summary.perSlot.forEach { slot ->
                     FactRow(
-                        stringResource(slot.slot.nameRes()),
+                        slot.slot.label(),
                         stringResource(R.string.progress_slot_average, Measures.formatTenths(slot.averageTenths ?: 0), UiFormat.readings(context, slot.count)),
                     )
                 }
