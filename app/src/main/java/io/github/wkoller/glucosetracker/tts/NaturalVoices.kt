@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Receives each piece of audio from sherpa-onnx. Its native code looks up a method named invoke that
@@ -65,8 +66,8 @@ class NaturalVoices(private val context: Context) {
     private var speakJob: Job? = null
     private var idleJob: Job? = null
 
-    @Volatile
-    private var stopRequested = false
+    /** Moves on with Stop and with each new request, so speech that has been replaced ends at its next chance. */
+    private val requests = AtomicLong()
 
     private val installDir: File get() = File(context.filesDir, "$VOICES_DIR/$MODEL_NAME")
     private val marker: File get() = File(installDir, ".installed")
@@ -176,44 +177,49 @@ class NaturalVoices(private val context: Context) {
 
     /**
      * Speaks [text] with [speaker]. [speed] is 1.0 for a normal pace. Stops anything already being said.
-     * If the natural voice fails for any reason, [onFailure] is called so the text can be read another way.
+     * [onFinished] is called when the speech has been read or stopped. If the natural voice fails for any
+     * reason, [onFailure] is called instead, so the text can be read another way.
      */
-    fun speak(text: String, speaker: Int, speed: Float, onFailure: () -> Unit = {}) {
+    fun speak(text: String, speaker: Int, speed: Float, onFinished: () -> Unit = {}, onFailure: () -> Unit = {}) {
         stop()
         if (!isReady) {
             onFailure()
             return
         }
-        stopRequested = false
+        val request = requests.incrementAndGet()
+        fun active() = requests.get() == request
         speakJob = scope.launch {
             _preparing.value = true
             try {
                 engineLock.withLock {
                     idleJob?.cancel()
                     val tts = engine ?: load().also { engine = it }
-                    val output = audioTrack(tts.sampleRate())
-                    output.play()
-                    tts.generateWithCallback(
-                        text,
-                        speaker,
-                        speed,
-                        AudioSink { samples ->
-                            _preparing.value = false
-                            if (stopRequested) {
-                                false
-                            } else {
-                                output.write(samples, 0, samples.size, AudioTrack.WRITE_BLOCKING)
-                                true
-                            }
-                        },
-                    )
-                    // Stopping a streaming track lets the audio already written finish playing.
-                    if (!stopRequested) output.stop()
+                    // Speech that was stopped or replaced while it waited is not started.
+                    if (active()) {
+                        val output = audioTrack(tts.sampleRate())
+                        // Audio left by speech that was stopped part-way is cleared, so it is not heard first.
+                        output.flush()
+                        output.play()
+                        tts.generateWithCallback(
+                            text,
+                            speaker,
+                            speed,
+                            AudioSink { samples ->
+                                _preparing.value = false
+                                if (active()) output.write(samples, 0, samples.size, AudioTrack.WRITE_BLOCKING)
+                                active()
+                            },
+                        )
+                        // Stopping a streaming track lets the audio already written finish playing. Speech that
+                        // was stopped stays paused, in case Stop came just as it started.
+                        if (active()) output.stop() else output.pause()
+                    }
                     idleJob = scope.launch {
                         delay(IDLE_RELEASE_MS)
                         release()
                     }
                 }
+                onFinished()
             } catch (error: Throwable) {
                 // Native code can fail with an Error rather than an Exception, so everything is caught here.
                 if (error is kotlinx.coroutines.CancellationException) throw error
@@ -226,7 +232,7 @@ class NaturalVoices(private val context: Context) {
     }
 
     fun stop() {
-        stopRequested = true
+        requests.incrementAndGet()
         track?.let {
             runCatching {
                 it.pause()

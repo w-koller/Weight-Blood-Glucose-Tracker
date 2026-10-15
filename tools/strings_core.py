@@ -19,6 +19,7 @@ STRINGS = {
     "continue_label": "Continue",
     "keep_editing": "Keep editing",
     "read_aloud": "Read this aloud",
+    "stop_reading_aloud": "Stop reading aloud",
     "choose_date": "Choose a date",
     "change_date": "Change the date",
     "remove_date": "Remove the date",

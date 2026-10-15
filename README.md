@@ -15,7 +15,7 @@ Weight & Glucose Tracker is an Android app that records weight, waist measuremen
 - **Optional assistant.** Gemma 4, a language model that runs on the phone, can summarise records and answer questions about them. It does not give medical advice or work out doses.
 - **Your name.** An optional first and family name personalises the greeting and appears on reports for the doctor.
 - **Display and accessibility.** Five text sizes from Small to Largest, maximum contrast, a dark theme, simple mode, read-aloud results with a sample of each speed, and options to hide icons or extra explanations.
-- **Voices.** Results are read aloud in the phone's default voice, or another voice chosen in **Settings › Display and accessibility › Choose a voice**. Optional natural voices (a 98 MB download, with American and British accents) sound more like a person speaking. The first setup offers both downloads.
+- **Voices.** Results are read aloud in the phone's default voice, or another voice chosen in **Settings › Display and accessibility › Choose a voice**. The **Read this aloud** button changes to **Stop reading aloud** while a result is being read, and leaving the screen also stops the voice. Optional natural voices (a 98 MB download, with American and British accents) sound more like a person speaking. The first setup offers both downloads.
 
 ## Important
 
