@@ -75,6 +75,8 @@ class AssistantService(
     private val repository: TrackerRepository,
     private val models: ModelManager,
     private val settings: io.github.wkoller.glucosetracker.data.prefs.SettingsStore,
+    /** Keeps a failure in the problem report, so a model that will not load on someone's phone can be looked into. */
+    private val onError: (Throwable) -> Unit = {},
 ) {
     @Volatile
     private var current: Conversation? = null
@@ -161,6 +163,7 @@ class AssistantService(
             }
         } catch (error: Throwable) {
             if (error is kotlinx.coroutines.CancellationException) throw error
+            onError(error)
             send(AssistantReply.Failed)
         }
     }.flowOn(Dispatchers.Default)

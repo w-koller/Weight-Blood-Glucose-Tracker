@@ -65,7 +65,7 @@ STRINGS = {
     "progress_above": "Readings above your target range",
     "progress_lowest": "Lowest",
     "progress_highest": "Highest",
-    "progress_reading_on": "%1$s mmol/L on %2$s",
+    "progress_reading_on": "%1$s on %2$s",
     "progress_by_time": "Average by time of day",
     "progress_slot_average": "%1$s mmol/L from %2$s",
     "progress_correction_summary": "Given %1$s, %2$s in total. Not given %3$s.",

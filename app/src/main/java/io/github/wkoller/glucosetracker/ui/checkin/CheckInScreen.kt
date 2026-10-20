@@ -272,7 +272,9 @@ private fun ResultStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit) 
         stringResource(R.string.checkin_result_no_dose, insulin)
     }
     val noticeTexts = advice.notices.mapNotNull { notice -> noticeText(notice, ui, unitsText) }
-    val spoken = (listOf(headline, doseSentence) + noticeTexts.map { it.second }).joinToString(" ")
+    // A level that is back up after a low earlier in this check-in can drop again without some longer-acting carbohydrate.
+    val recovered = if (ui.lowThisCheck) stringResource(R.string.checkin_low_recovered) else null
+    val spoken = (listOf(headline, doseSentence) + noticeTexts.map { it.second } + listOfNotNull(recovered)).joinToString(" ")
     AutoSpeak(spoken)
 
     StepScaffold(
@@ -304,6 +306,7 @@ private fun ResultStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit) 
             if (advice.units > 0) Text(unitsText, style = MaterialTheme.typography.displayLarge)
         }
         noticeTexts.forEach { (kind, text, title) -> NoticeCard(kind, title, text) }
+        recovered?.let { NoticeCard(NoticeKind.INFO, stringResource(R.string.checkin_low_recovered_title), it) }
         SpeakButton(spoken)
         ScaleTable(plan.scale, insulin, advice.bandIndex)
     }

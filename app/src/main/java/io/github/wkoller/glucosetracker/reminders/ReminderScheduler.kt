@@ -38,9 +38,16 @@ class ReminderScheduler(
     private val notifications = NotificationManagerCompat.from(context)
 
     init {
-        val channel = NotificationChannel(CHANNEL_ID, context.getString(R.string.reminder_channel), NotificationManager.IMPORTANCE_HIGH)
-            .apply { description = context.getString(R.string.reminder_channel_description) }
-        context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        val manager = context.getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, context.getString(R.string.reminder_channel), NotificationManager.IMPORTANCE_HIGH)
+                .apply { description = context.getString(R.string.reminder_channel_description) },
+        )
+        // A channel of its own, so the monthly backup reminder can be turned off without losing the check reminders.
+        manager.createNotificationChannel(
+            NotificationChannel(BACKUP_CHANNEL_ID, context.getString(R.string.backup_channel), NotificationManager.IMPORTANCE_DEFAULT)
+                .apply { description = context.getString(R.string.backup_channel_description) },
+        )
     }
 
     val canUseExactAlarms: Boolean get() = alarms.canScheduleExactAlarms()
@@ -123,7 +130,7 @@ class ReminderScheduler(
         val open = PendingIntent.getActivity(context, 500, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         notify(
             BACKUP_NOTIFICATION,
-            NotificationCompat.Builder(context, CHANNEL_ID)
+            NotificationCompat.Builder(context, BACKUP_CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_save)
                 .setContentTitle(context.getString(R.string.backup_reminder_title))
                 .setContentText(body)
@@ -179,6 +186,7 @@ class ReminderScheduler(
 
     companion object {
         const val CHANNEL_ID = "reminders"
+        const val BACKUP_CHANNEL_ID = "backup"
         const val EXTRA_SLOT = "slot"
         const val EXTRA_KIND = "kind"
         const val KIND_DAILY = "daily"

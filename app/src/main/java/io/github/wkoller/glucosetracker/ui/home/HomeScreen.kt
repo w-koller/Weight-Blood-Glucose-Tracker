@@ -295,7 +295,9 @@ private fun NextStepCard(step: NextStep, actions: HomeActions) {
 private fun TodayCard(ui: HomeUi) {
     val context = LocalContext.current
     val status = LocalStatusColors.current
-    SectionCard(stringResource(R.string.home_today_title)) {
+    // Just after midnight the checks still belong to the evening before, so the card names that day.
+    val title = if (ui.today == ui.now.toLocalDate()) stringResource(R.string.home_today_title) else UiFormat.dayLong(ui.today)
+    SectionCard(title) {
         ui.slots.forEach { slot ->
             val (icon, label, tint) = when (slot.state) {
                 SlotState.DONE -> Triple(R.drawable.ic_check_circle, R.string.slot_state_done, status.inTarget)

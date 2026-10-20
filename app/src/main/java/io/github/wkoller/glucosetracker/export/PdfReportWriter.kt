@@ -134,10 +134,15 @@ class PdfReportWriter(private val context: Context, private val naming: SlotNami
         model.doses.forEach { summary ->
             val given = UiFormat.times(context, summary.givenCount)
             val skipped = UiFormat.times(context, summary.skippedCount)
-            val text = if (summary.medicineKind == MedicineKind.INSULIN) {
-                context.getString(R.string.report_doses, summary.medicineName, given, UiFormat.dose(context, summary.totalGiven, summary.medicineKind, summary.unit), skipped)
-            } else {
-                context.getString(R.string.report_doses_fixed, summary.medicineName, given, skipped)
+            val total = UiFormat.dose(context, summary.totalGiven, summary.medicineKind, summary.unit)
+            val insulin = summary.medicineKind == MedicineKind.INSULIN
+            // A count of nought is left out rather than printed as "given 0 times".
+            val text = when {
+                summary.givenCount == 0 -> context.getString(R.string.report_doses_not_given_only, summary.medicineName, skipped)
+                summary.skippedCount == 0 && insulin -> context.getString(R.string.report_doses_given_only, summary.medicineName, given, total)
+                summary.skippedCount == 0 -> context.getString(R.string.report_doses_fixed_given_only, summary.medicineName, given)
+                insulin -> context.getString(R.string.report_doses, summary.medicineName, given, total, skipped)
+                else -> context.getString(R.string.report_doses_fixed, summary.medicineName, given, skipped)
             }
             writer.text(text, writer.body)
         }

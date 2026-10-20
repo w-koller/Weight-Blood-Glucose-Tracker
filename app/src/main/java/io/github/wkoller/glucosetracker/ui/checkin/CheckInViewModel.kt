@@ -28,6 +28,8 @@ import io.github.wkoller.glucosetracker.domain.validation.NumberInput
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Duration
@@ -88,7 +90,7 @@ data class CheckInUi(
     val currentInsulin: DueMedicine? get() = dueInsulins.firstOrNull()
 }
 
-class CheckInViewModel(private val container: AppContainer, handle: SavedStateHandle) : ViewModel() {
+class CheckInViewModel(private val container: AppContainer, private val handle: SavedStateHandle) : ViewModel() {
     private val repository = container.repository
     private val requestedSlot = handle.get<String>("slot")?.let { runCatching { Slot.valueOf(it) }.getOrNull() }
     private val medicinesOnly = handle.get<Boolean>("medsOnly") ?: false
@@ -104,9 +106,48 @@ class CheckInViewModel(private val container: AppContainer, handle: SavedStateHa
                 _ui.update { it.copy(loading = false) }
                 return@launch
             }
-            val slot = requestedSlot ?: SlotResolver.resolve(plan, repository.now().toLocalTime())
-            _ui.update { it.copy(loading = false, plan = plan, slot = slot, date = repository.logicalToday(plan)) }
-            if (medicinesOnly) goToMedicines()
+            val saved = handle.get<String>(KEY_SAVED)?.let(CheckInStateJson::decode)
+            if (saved != null) {
+                restore(plan, saved)
+            } else {
+                val slot = requestedSlot ?: SlotResolver.resolve(plan, repository.now().toLocalTime())
+                _ui.update { it.copy(loading = false, plan = plan, slot = slot, date = repository.logicalToday(plan)) }
+                if (medicinesOnly) goToMedicines()
+            }
+            // Keep where the check-in has got to, so it carries on if Android closes the app in the background.
+            _ui.map { CheckInStateJson.encode(SavedCheckIn.of(it)) }.distinctUntilChanged().collect { handle[KEY_SAVED] = it }
+        }
+    }
+
+    /**
+     * Puts back a check-in that Android closed in the background. Its readings and doses are read from the database,
+     * and the advice is worked out again as it was at the time of the reading, without this check-in's own doses.
+     */
+    private suspend fun restore(plan: Plan, saved: SavedCheckIn) {
+        val readings = repository.readingsBetween(saved.date, saved.date).filter { it.id in saved.readingIds }
+        val recorded = repository.dosesBetween(saved.date, saved.date).filter { it.id in saved.doseIds }
+        val reading = readings.firstOrNull { it.id == saved.readingId }
+        val earlier = repository.dosesBetween(saved.date.minusDays(1), saved.date).filter { it.id !in saved.doseIds }
+        val advice = reading?.let { DoseAdvisor.advise(plan, saved.slot, it.tenths, it.meterFlag, it.takenAt, saved.date, earlier) }
+        _ui.update {
+            it.copy(
+                loading = false, plan = plan, slot = saved.slot, date = saved.date, reading = reading, readings = readings,
+                recorded = recorded, advice = advice, lowThisCheck = saved.lowThisCheck, recheckAt = saved.recheckAt,
+                treatments = saved.treatments, note = saved.note, noteText = saved.note, noteReadingId = saved.noteReadingId,
+            )
+        }
+        when (saved.step) {
+            CheckInStep.BGL -> _ui.update { it.copy(step = CheckInStep.BGL) }
+            CheckInStep.DONE, CheckInStep.NOTE -> finish()
+            else -> {
+                // Before the sliding-scale dose is recorded the result is shown again; after it, the medicines carry on.
+                val correctionDone = reading == null || recorded.any { it.kind == DoseKind.CORRECTION && it.readingId == reading.id }
+                if (correctionDone) {
+                    goToMedicinesNow()
+                } else {
+                    _ui.update { it.copy(step = if (advice?.isHypo == true) CheckInStep.LOW else CheckInStep.RESULT) }
+                }
+            }
         }
     }
 
@@ -453,5 +494,8 @@ class CheckInViewModel(private val container: AppContainer, handle: SavedStateHa
     companion object {
         const val UNITS = "units"
         val RECHECK: Duration = Duration.ofMinutes(15)
+
+        /** Where the check-in in progress is kept, so it survives Android closing the app in the background. */
+        private const val KEY_SAVED = "checkin"
     }
 }

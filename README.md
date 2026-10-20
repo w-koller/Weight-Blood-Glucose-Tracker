@@ -36,7 +36,7 @@ New versions install over the old one, and your records are kept, as long as the
 
 ## The assistant
 
-The first setup asks whether to download the assistant, and you can also set it up later in **Settings › Assistant**. The model is 2.6 GB. It downloads on Wi-Fi, or on mobile data if you agree after a warning that charges may apply. The app checks the download before it uses it. The app uses the internet only for this download and the optional natural voices. Your records stay on the phone, and the app does not send them anywhere.
+The first setup asks whether to download the assistant, and you can also set it up later in **Settings › Assistant**. The model is 2.6 GB. It downloads on Wi-Fi, or on mobile data if you agree after a warning that charges may apply. The app checks the download before it uses it. The app uses the internet only for this download and the optional natural voices. Your records stay on the phone, and the app does not send them anywhere. If you ask the assistant a question by speaking, the phone's own speech recognition turns your words into text, and it may use the internet to do that.
 
 ## Your records
 

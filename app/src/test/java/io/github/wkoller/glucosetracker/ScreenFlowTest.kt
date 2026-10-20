@@ -616,6 +616,35 @@ class ScreenFlowTest {
     }
 
     @Test
+    fun `a reading that is back up after a low suggests longer-acting carbohydrate`() {
+        seedPlan()
+        show { CheckInScreen(onClose = {}, onMeasure = {}, onCheckIn = {}) }
+        waitFor("Please enter the reading")
+        chooseSlot("Lunch")
+        type("3.6")
+        click("Next")
+        click("Enter my new reading")
+        waitFor("Please enter the reading")
+        type("6.2")
+        click("Next")
+        waitFor("Your level is back up")
+        shot("checkin_33_low_recovered")
+    }
+
+    @Test
+    fun `a date is set with Earlier and Later buttons`() {
+        var date: LocalDate? = LocalDate.of(2026, 10, 8)
+        show { io.github.wkoller.glucosetracker.ui.components.DateField("Start date", date, { date = it }) }
+        click("Change the date")
+        waitFor("Thursday 8 October 2026")
+        click("Later")
+        waitFor("Friday 9 October 2026")
+        shot("setup_10_date_stepper")
+        click("Save")
+        assertEquals(LocalDate.of(2026, 10, 9), date)
+    }
+
+    @Test
     fun `home shows the next step and today`() {
         seedPlan()
         runBlocking {

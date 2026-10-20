@@ -5,19 +5,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,13 +33,10 @@ import androidx.compose.ui.window.DialogProperties
 import android.text.format.DateFormat
 import io.github.wkoller.glucosetracker.R
 import io.github.wkoller.glucosetracker.ui.UiFormat
-import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.ZoneOffset
 
-/** A labelled date with a button that opens a calendar. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** A labelled date with a button that opens the date stepper. */
 @Composable
 fun DateField(
     label: String,
@@ -69,23 +60,66 @@ fun DateField(
         }
     }
     if (open) {
-        val state = rememberDatePickerState(
-            initialSelectedDateMillis = (date ?: LocalDate.now()).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli(),
-        )
-        DatePickerDialog(
-            onDismissRequest = { open = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    state.selectedDateMillis?.let { onDateChange(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate()) }
-                    open = false
-                }, modifier = Modifier.heightIn(min = 56.dp)) { Text(stringResource(R.string.ok), style = MaterialTheme.typography.labelLarge) }
-            },
-            dismissButton = {
-                TextButton(onClick = { open = false }, modifier = Modifier.heightIn(min = 56.dp)) {
-                    Text(stringResource(R.string.cancel), style = MaterialTheme.typography.labelLarge)
+        var draft by remember { mutableStateOf(date ?: LocalDate.now()) }
+        Dialog(onDismissRequest = { open = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+            ) {
+                Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Text(label, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
+                    DateStepper(draft, { draft = it })
+                    BigButton(stringResource(R.string.save), onClick = { onDateChange(draft); open = false })
+                    BigButton(stringResource(R.string.cancel), onClick = { open = false }, style = ButtonStyle.SECONDARY)
                 }
-            },
-        ) { DatePicker(state = state) }
+            }
+        }
+    }
+}
+
+/**
+ * Sets a date with large Earlier and Later buttons for the day, the month and the year. A calendar has small
+ * days to tap and gets cramped at large text sizes, so it is not used.
+ */
+@Composable
+fun DateStepper(date: LocalDate, onDateChange: (LocalDate) -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(3.dp, MaterialTheme.colorScheme.primary),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+        ) {
+            Text(
+                UiFormat.dayLongYear(date),
+                style = MaterialTheme.typography.headlineMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp).testTag("date_value"),
+            )
+        }
+        StepperRow(
+            label = stringResource(R.string.date_day_label),
+            earlier = stringResource(R.string.date_day_earlier),
+            later = stringResource(R.string.date_day_later),
+            onEarlier = { onDateChange(date.minusDays(1)) },
+            onLater = { onDateChange(date.plusDays(1)) },
+        )
+        StepperRow(
+            label = stringResource(R.string.date_month_label),
+            earlier = stringResource(R.string.date_month_earlier),
+            later = stringResource(R.string.date_month_later),
+            onEarlier = { onDateChange(date.minusMonths(1)) },
+            onLater = { onDateChange(date.plusMonths(1)) },
+        )
+        StepperRow(
+            label = stringResource(R.string.date_year_label),
+            earlier = stringResource(R.string.date_year_earlier),
+            later = stringResource(R.string.date_year_later),
+            onEarlier = { onDateChange(date.minusYears(1)) },
+            onLater = { onDateChange(date.plusYears(1)) },
+        )
     }
 }
 

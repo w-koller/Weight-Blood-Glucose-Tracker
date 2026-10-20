@@ -66,7 +66,7 @@ STRINGS = {
     "readout_count_week": "You have recorded %1$s of your blood glucose level (BGL) in the last 7 days.",
     "readout_average": "Your average was %1$s mmol/L, and %2$d of %3$d were in your target range.",
     "readout_no_lows": "You had no low readings.",
-    "readout_highest": "Your highest reading was %1$s mmol/L on %2$s.",
+    "readout_highest": "Your highest reading was %1$s on %2$s.",
     "readout_correction": "You gave %1$s %2$s, %3$s in total.",
     "readout_fixed": "%1$s was recorded as given %2$s and not given %3$s.",
     "readout_weight_same": "Your latest weight is %1$s kg, the same as at the start of your plan.",

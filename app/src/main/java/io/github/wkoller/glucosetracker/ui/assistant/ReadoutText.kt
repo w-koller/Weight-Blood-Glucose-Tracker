@@ -29,7 +29,7 @@ object ReadoutText {
                 },
             )
             glucose.highest?.let {
-                add(context.getString(R.string.readout_highest, Measures.formatTenths(it.tenths), UiFormat.dayLong(it.date)))
+                add(context.getString(R.string.readout_highest, UiFormat.reading(context, it.tenths, it.meterFlag), UiFormat.dayLong(it.date)))
             }
         }
         facts.doses.forEach { dose ->
@@ -38,7 +38,15 @@ object ReadoutText {
                     add(context.getString(R.string.readout_correction, dose.medicineName, UiFormat.times(context, dose.givenCount), UiFormat.dose(context, dose.totalGiven, MedicineKind.INSULIN, dose.unit)))
                 }
             } else {
-                add(context.getString(R.string.readout_fixed, dose.medicineName, UiFormat.times(context, dose.givenCount), UiFormat.times(context, dose.skippedCount)))
+                val given = UiFormat.times(context, dose.givenCount)
+                val skipped = UiFormat.times(context, dose.skippedCount)
+                add(
+                    when {
+                        dose.skippedCount == 0 -> context.getString(R.string.readout_fixed_given_only, dose.medicineName, given)
+                        dose.givenCount == 0 -> context.getString(R.string.readout_fixed_not_given_only, dose.medicineName, skipped)
+                        else -> context.getString(R.string.readout_fixed, dose.medicineName, given, skipped)
+                    },
+                )
             }
         }
         val weight = facts.weight

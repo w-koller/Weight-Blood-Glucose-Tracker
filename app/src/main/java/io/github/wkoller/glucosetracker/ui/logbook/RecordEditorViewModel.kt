@@ -201,6 +201,7 @@ class RecordEditorViewModel(private val container: AppContainer, handle: SavedSt
         EditorStep.WEIGHT -> weightError(state.weightText, required = state.waistText.isBlank())
         EditorStep.WAIST -> waistError(state.waistText, required = state.weightText.isBlank())
         EditorStep.MEDICINE -> if (state.medicine == null) R.string.editor_choose_one else null
+        EditorStep.TIME -> if (takenAt(state).isAfter(repository.instant())) R.string.editor_time_future else null
         else -> null
     }
 
