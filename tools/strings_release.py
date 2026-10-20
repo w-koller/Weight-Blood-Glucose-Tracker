@@ -57,6 +57,27 @@ STRINGS = {
     # Adding a record afterwards
     "editor_time_future": "Please choose a time that has already passed.",
 
+    # Licences
+    "licences_title": "Licences",
+    "licences_open": "Read the licences",
+    "licences_body": "This app is free software under the GNU General Public License, version 3. It is built with the software below, each under its own licence. Please choose one to read its licence in full.",
+    "licence_gpl": "GNU General Public License, version 3",
+    "licence_apache": "Apache License, version 2.0",
+    "licence_mit": "MIT License",
+    "licence_notices": "Notices and licences",
+    "licence_item_app": "Weight & Glucose Tracker",
+    "licence_item_litertlm": "LiteRT-LM, which runs the assistant",
+    "licence_item_litertlm_notices": "The software that LiteRT-LM uses",
+    "licence_item_gemma": "Gemma 4, the assistant\u2019s model, downloaded if you choose it",
+    "licence_item_sherpa": "sherpa-onnx, which runs the natural voices",
+    "licence_item_onnxruntime": "ONNX Runtime, part of sherpa-onnx",
+    "licence_item_kokoro": "Kokoro-82M, the natural voices, downloaded if you choose them",
+    "licence_item_espeak": "eSpeak NG data, downloaded with the natural voices",
+    "licence_item_commons_compress": "Apache Commons Compress, which unpacks the natural voices",
+    "licence_item_commons_compress_notice": "The notice for Apache Commons Compress",
+    "licence_item_jetpack": "Android Jetpack libraries and Kotlin",
+    "licence_item_material_symbols": "Material Symbols icons from Google",
+
     # Restoring a backup
     "backup_damaged": "This backup file is damaged, so it cannot be restored. Your records on this phone have not changed. Please try another backup file.",
 }

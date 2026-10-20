@@ -28,7 +28,14 @@ applies before raising `targetSdk` above 36.
 
 CI (`.github/workflows/android.yml`) runs the same tasks and uploads the debug APK. It also builds a
 signed release APK when the `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and `KEY_PASSWORD`
-secrets are set. The release keystore lives at `~/.android-keys/` and must never be committed.
+secrets are set. The release keystore lives at `~/.android-keys/` and must never be committed. A `v*` tag
+that matches `versionName` publishes the signed APK and its checksum as a GitHub Release, with the notes from
+that version's section of `CHANGELOG.md`. CI also fails when `strings.xml` does not match `tools/strings_*.py`.
+
+About › Licences reads `assets/licences/`. The build copies the licence and notice files out of the LiteRT-LM
+and Commons Compress archives into it (`collect<Variant>Licences`), and `app/src/main/assets/licences/` holds
+the ONNX Runtime licence, which no archive carries. Please add a library to the list in `LicencesScreens.kt`
+when it is added to the app.
 
 ## Layout
 

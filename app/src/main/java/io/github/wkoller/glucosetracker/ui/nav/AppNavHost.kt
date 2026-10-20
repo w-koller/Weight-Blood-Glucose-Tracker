@@ -37,6 +37,8 @@ import io.github.wkoller.glucosetracker.ui.progress.ProgressScreen
 import io.github.wkoller.glucosetracker.ui.reminders.RemindersScreen
 import io.github.wkoller.glucosetracker.ui.settings.AboutScreen
 import io.github.wkoller.glucosetracker.ui.settings.DisplaySettingsScreen
+import io.github.wkoller.glucosetracker.ui.settings.LicenceTextScreen
+import io.github.wkoller.glucosetracker.ui.settings.LicencesScreen
 import io.github.wkoller.glucosetracker.ui.settings.SettingsActions
 import io.github.wkoller.glucosetracker.ui.settings.SettingsScreen
 import io.github.wkoller.glucosetracker.ui.settings.SupportPersonScreen
@@ -65,6 +67,8 @@ object Routes {
     const val ASSISTANT_SETTINGS = "settings/assistant"
     const val EXPORT = "settings/export"
     const val ABOUT = "settings/about"
+    const val LICENCES = "settings/about/licences"
+    const val LICENCE_TEXT = "settings/about/licences/text?file={file}"
     const val VOICE = "settings/voice"
     const val BACKUP = "settings/backup"
     const val SUPPORT = "settings/support"
@@ -77,6 +81,7 @@ object Routes {
     fun editRecord(date: String, kind: String, id: Long) = "record?date=$date&kind=$kind&id=$id"
     fun addRecord(date: String) = "record?date=$date&kind=&id=0"
     fun unlock(next: SetupMode) = "unlock?next=${next.name}"
+    fun licenceText(file: String) = "settings/about/licences/text?file=$file"
 
     /** The assistant, about the last [days] days from the Progress screen, or the usual today and this week. */
     fun assistant(days: Int? = null) = "assistant?days=${days ?: 0}"
@@ -238,6 +243,10 @@ fun AppNavHost(
         composable(Routes.REMINDERS) { RemindersScreen(onBack = back) }
         composable(Routes.ASSISTANT_SETTINGS) { AssistantSettingsScreen(onBack = back) }
         composable(Routes.EXPORT) { ExportScreen(onBack = back) }
-        composable(Routes.ABOUT) { AboutScreen(onBack = back) }
+        composable(Routes.ABOUT) { AboutScreen(onBack = back, onLicences = { navController.navigate(Routes.LICENCES) }) }
+        composable(Routes.LICENCES) { LicencesScreen(onBack = back, onOpen = { navController.navigate(Routes.licenceText(it)) }) }
+        composable(Routes.LICENCE_TEXT, arguments = listOf(navArgument("file") { type = NavType.StringType; defaultValue = "" })) { entry ->
+            LicenceTextScreen(file = entry.arguments?.getString("file").orEmpty(), onBack = back)
+        }
     }
 }

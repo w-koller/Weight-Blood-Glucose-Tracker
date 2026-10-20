@@ -27,12 +27,11 @@ This app is for personal and family use. It is not available on Google Play and 
 
 The app needs Android 12 or later. The assistant also needs a phone with 8 GB of memory or more.
 
-1. Open the [latest successful build](../../actions/workflows/android.yml) on GitHub and download the `weight-glucose-tracker-release` file. If it is not there, use `weight-glucose-tracker-debug`.
-2. Unzip the download and copy the `.apk` file to the phone.
-3. Open the file on the phone. Android will ask for permission to install apps from that source. Please allow it for this install only.
-4. Open **Weight & Glucose Tracker** and follow the setup steps with the doctor's order in front of you.
+1. Open the [latest release](../../releases/latest) on GitHub and download the `.apk` file, for example `weight-glucose-tracker-1.0.0.apk`. You can do this on the phone itself.
+2. Open the file on the phone. Android will ask for permission to install apps from that source. Please allow it for this install only.
+3. Open **Weight & Glucose Tracker** and follow the setup steps with the doctor's order in front of you.
 
-New versions install over the old one, and your records are kept, as long as they are signed with the same key. The debug and release versions are separate apps with separate records.
+New versions install over the old one, and your records are kept. Each release is signed with the same key, and its page lists the file's SHA-256 checksum. The changes in each version are in [CHANGELOG.md](CHANGELOG.md).
 
 ## The assistant
 
@@ -52,6 +51,8 @@ The app is written in Kotlin with Jetpack Compose. The dose and schedule rules l
 
 The release signing key is kept outside the repository. Please keep a backup of it, because without it a new version cannot be installed over the old one.
 
+To publish a release, set `versionCode` and `versionName` in `app/build.gradle.kts`, add a section for the version to `CHANGELOG.md`, and push a tag such as `v1.0.0`. CI builds the signed APK and creates the GitHub Release with the APK and its checksum. Each CI run also uploads a debug APK. It is a separate app, with its own records, so it is for testing only.
+
 ## Licence
 
-This project is licensed under the GNU General Public License, version 3. Icons are Material Symbols from Google, used under the Apache License 2.0.
+This project is licensed under the GNU General Public License, version 3. Icons are Material Symbols from Google, used under the Apache License 2.0. The other software the app is built with, and its licences, are listed in the app under **Settings › About this app › Read the licences**.

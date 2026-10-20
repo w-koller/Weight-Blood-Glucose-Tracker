@@ -632,6 +632,26 @@ class ScreenFlowTest {
     }
 
     @Test
+    fun `the licences list the software and open its text`() {
+        val opened = androidx.compose.runtime.mutableStateOf<String?>(null)
+        show {
+            val file = opened.value
+            if (file == null) {
+                io.github.wkoller.glucosetracker.ui.settings.LicencesScreen(onBack = {}, onOpen = { opened.value = it })
+            } else {
+                io.github.wkoller.glucosetracker.ui.settings.LicenceTextScreen(file = file, onBack = {})
+            }
+        }
+        waitFor("LiteRT-LM, which runs the assistant")
+        shot("about_01_licences")
+        click("The software that LiteRT-LM uses")
+        assertEquals("litertlm-android-THIRD_PARTY_NOTICE.txt", opened.value)
+        // The notices run to thousands of paragraphs, read from the assets the build collected.
+        waitFor("Abseil")
+        shot("about_02_licence_text")
+    }
+
+    @Test
     fun `a date is set with Earlier and Later buttons`() {
         var date: LocalDate? = LocalDate.of(2026, 10, 8)
         show { io.github.wkoller.glucosetracker.ui.components.DateField("Start date", date, { date = it }) }

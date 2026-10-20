@@ -197,7 +197,7 @@ fun DisplaySettingsScreen(onBack: () -> Unit, onChooseVoice: () -> Unit) {
 }
 
 @Composable
-fun AboutScreen(onBack: () -> Unit) {
+fun AboutScreen(onBack: () -> Unit, onLicences: () -> Unit = {}) {
     val context = LocalContext.current
     var report by remember { mutableStateOf(CrashReporter.latest(context)) }
     ScreenScaffold(title = stringResource(R.string.settings_about), onBack = onBack) {
@@ -229,6 +229,7 @@ fun AboutScreen(onBack: () -> Unit) {
         SectionCard(stringResource(R.string.about_version_title)) {
             Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodyLarge)
             Text(stringResource(R.string.about_licence), style = MaterialTheme.typography.bodyLarge)
+            BigButton(stringResource(R.string.licences_open), onClick = onLicences, icon = R.drawable.ic_description, style = ButtonStyle.SECONDARY)
         }
     }
 }
