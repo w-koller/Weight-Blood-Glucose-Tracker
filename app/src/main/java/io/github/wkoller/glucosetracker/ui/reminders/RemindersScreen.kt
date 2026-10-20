@@ -1,12 +1,8 @@
 package io.github.wkoller.glucosetracker.ui.reminders
 
-import android.Manifest
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.provider.Settings
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,6 +28,7 @@ import io.github.wkoller.glucosetracker.ui.components.ScreenScaffold
 import io.github.wkoller.glucosetracker.ui.components.SectionCard
 import io.github.wkoller.glucosetracker.ui.components.ToggleRow
 import io.github.wkoller.glucosetracker.ui.components.label
+import io.github.wkoller.glucosetracker.ui.components.rememberNotificationPermission
 import kotlinx.coroutines.launch
 
 @Composable
@@ -49,7 +46,7 @@ fun RemindersScreen(onBack: () -> Unit) {
     }
     val notificationsAllowed = remember(refresh) { container.reminders.notificationsAllowed }
     val exactAllowed = remember(refresh) { container.reminders.canUseExactAlarms }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refresh++ }
+    val requestNotifications = rememberNotificationPermission { refresh++ }
 
     ScreenScaffold(title = stringResource(R.string.settings_reminders), onBack = onBack) {
         ToggleRow(
@@ -65,16 +62,7 @@ fun RemindersScreen(onBack: () -> Unit) {
         )
         if (!notificationsAllowed) {
             NoticeCard(NoticeKind.WARNING, stringResource(R.string.reminders_no_notifications_title), stringResource(R.string.reminders_no_notifications)) {
-                BigButton(
-                    stringResource(R.string.setup_allow_notifications),
-                    onClick = {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        } else {
-                            context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
-                        }
-                    },
-                )
+                BigButton(stringResource(R.string.setup_allow_notifications), onClick = requestNotifications)
             }
         }
         if (!exactAllowed) {

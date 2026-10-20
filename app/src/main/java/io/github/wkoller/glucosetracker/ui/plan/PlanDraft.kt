@@ -12,6 +12,7 @@ import io.github.wkoller.glucosetracker.domain.model.Plan
 import io.github.wkoller.glucosetracker.domain.model.ScheduledMedicine
 import io.github.wkoller.glucosetracker.domain.model.Slot
 import io.github.wkoller.glucosetracker.domain.model.SlotSchedule
+import io.github.wkoller.glucosetracker.domain.schedule.CheckTimes
 import io.github.wkoller.glucosetracker.domain.validation.InputValidator
 import io.github.wkoller.glucosetracker.domain.validation.NumberInput
 import java.time.Instant
@@ -199,6 +200,7 @@ sealed interface DraftError {
     data class BandUnitsOutOfRange(val row: Int) : DraftError
     data object ScaleNotChecked : DraftError
     data object NoCheckTimes : DraftError
+    data object TimesOutOfOrder : DraftError
     data object MedicineNameMissing : DraftError
     data object MedicineNoTimes : DraftError
     data object MedicineUnitMissing : DraftError
@@ -212,6 +214,7 @@ sealed interface DraftError {
     data object TargetHighInvalid : DraftError
     data object HypoInvalid : DraftError
     data object TargetRangeOrder : DraftError
+    data object HypoAboveRange : DraftError
 }
 
 object DraftValidator {
@@ -244,8 +247,12 @@ object DraftValidator {
     fun scaleCheck(draft: PlanDraft): List<DraftError> =
         if (draft.scaleChecked) emptyList() else listOf(DraftError.ScaleNotChecked)
 
-    fun times(draft: PlanDraft): List<DraftError> =
-        if (draft.slots.none { it.checkBgl }) listOf(DraftError.NoCheckTimes) else emptyList()
+    fun times(draft: PlanDraft): List<DraftError> {
+        if (draft.slots.none { it.checkBgl }) return listOf(DraftError.NoCheckTimes)
+        // The times in use, in the order of the checks: those with a BGL check or a medicine.
+        val active = draft.slots.filter { slot -> slot.checkBgl || draft.medicines.any { it.amounts[slot.slot]?.isNotBlank() == true } }
+        return if (CheckTimes.inOrder(active.map { it.time })) emptyList() else listOf(DraftError.TimesOutOfOrder)
+    }
 
     fun medicine(draft: MedicineDraft): List<DraftError> {
         val errors = mutableListOf<DraftError>()
@@ -276,6 +283,9 @@ object DraftValidator {
         if (high !is NumberInput.Valid) errors += DraftError.TargetHighInvalid
         if (hypo !is NumberInput.Valid) errors += DraftError.HypoInvalid
         if (low is NumberInput.Valid && high is NumberInput.Valid && low.value >= high.value) errors += DraftError.TargetRangeOrder
+        if (low is NumberInput.Valid && hypo is NumberInput.Valid && !GlucoseTargets.hypoAtOrBelowRange(low.value, hypo.value)) {
+            errors += DraftError.HypoAboveRange
+        }
         return errors
     }
 

@@ -1,7 +1,5 @@
 package io.github.wkoller.glucosetracker.ui.checkin
 
-import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,14 +16,18 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -49,6 +51,8 @@ import io.github.wkoller.glucosetracker.ui.components.BglValue
 import io.github.wkoller.glucosetracker.ui.components.BigButton
 import io.github.wkoller.glucosetracker.ui.components.ButtonStyle
 import io.github.wkoller.glucosetracker.ui.components.ConfirmDialog
+import io.github.wkoller.glucosetracker.ui.components.DialButton
+import io.github.wkoller.glucosetracker.ui.components.EMERGENCY_NUMBER
 import io.github.wkoller.glucosetracker.ui.components.FactRow
 import io.github.wkoller.glucosetracker.ui.components.LabeledField
 import io.github.wkoller.glucosetracker.ui.components.NoticeCard
@@ -213,45 +217,43 @@ private fun LowStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit) {
     }
 }
 
-/**
- * Opens the phone's dialler with 000, or with the support person's number when one is saved. The
- * user still presses call in the dialler, so a stray tap never rings anyone.
- */
+/** Buttons that open the phone's dialler with 000, and with the support person's number when one is saved. */
 @Composable
 private fun CallButtons() {
-    val context = LocalContext.current
     val settings by appContainer().settingsStore.settings.collectAsStateWithLifecycle(null)
-    fun dial(number: String) {
-        runCatching { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null))) }
-    }
-    BigButton(stringResource(R.string.low_call_emergency), onClick = { dial(EMERGENCY_NUMBER) }, icon = R.drawable.ic_call, style = ButtonStyle.DANGER)
+    DialButton(stringResource(R.string.low_call_emergency), EMERGENCY_NUMBER, style = ButtonStyle.DANGER)
     settings?.takeIf { it.hasSupportPerson }?.let { person ->
         val label = if (person.supportName.isBlank()) stringResource(R.string.low_call_support_unnamed) else stringResource(R.string.low_call_support, person.supportName)
-        BigButton(label, onClick = { dial(person.supportPhone) }, icon = R.drawable.ic_call, style = ButtonStyle.SECONDARY)
+        DialButton(label, person.supportPhone)
     }
 }
-
-/** Australia's emergency number. The low-reading advice already tells the user to call it. */
-private const val EMERGENCY_NUMBER = "000"
 
 @Composable
 private fun RecheckCountdown(at: Instant) {
     val context = LocalContext.current
-    var remaining by remember { mutableStateOf(0L) }
+    fun secondsLeft() = ((at.toEpochMilli() - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+    var remaining by remember(at) { mutableLongStateOf(secondsLeft()) }
     LaunchedEffect(at) {
         while (true) {
-            remaining = ((at.toEpochMilli() - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+            remaining = secondsLeft()
             if (remaining == 0L) break
             delay(1000)
         }
     }
-    val text = if (remaining > 0) {
-        stringResource(R.string.checkin_low_timer_running, UiFormat.time(context, at), remaining / 60, remaining % 60)
-    } else {
-        stringResource(R.string.checkin_low_timer_done)
-    }
+    val time = UiFormat.time(context, at)
+    val text = if (remaining > 0) stringResource(R.string.checkin_low_timer_running, time, remaining / 60, remaining % 60) else stringResource(R.string.checkin_low_timer_done)
+    // The seconds change every second, which a screen reader would keep reading out, so it hears the whole minutes instead.
+    val minutesLeft = ((remaining + 59) / 60).toInt()
+    val spoken = if (remaining > 0) pluralStringResource(R.plurals.checkin_low_timer_spoken, minutesLeft, time, minutesLeft) else text
     SectionCard(stringResource(R.string.checkin_low_timer_title), icon = R.drawable.ic_timer) {
-        Text(text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+        Text(
+            text,
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.clearAndSetSemantics {
+                contentDescription = spoken
+                liveRegion = LiveRegionMode.Polite
+            },
+        )
     }
 }
 

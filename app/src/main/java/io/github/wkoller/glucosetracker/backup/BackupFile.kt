@@ -7,7 +7,9 @@ import io.github.wkoller.glucosetracker.data.db.GlucoseReadingEntity
 import io.github.wkoller.glucosetracker.data.db.PlanEntity
 import io.github.wkoller.glucosetracker.data.db.PlanMedicineEntity
 import io.github.wkoller.glucosetracker.data.db.PlanSlotEntity
+import io.github.wkoller.glucosetracker.data.db.PlanWithDetails
 import io.github.wkoller.glucosetracker.data.db.ScaleBandEntity
+import io.github.wkoller.glucosetracker.data.db.toDomain
 import io.github.wkoller.glucosetracker.data.prefs.Settings
 import io.github.wkoller.glucosetracker.data.prefs.TextSize
 import io.github.wkoller.glucosetracker.data.prefs.ThemeChoice
@@ -44,6 +46,9 @@ sealed interface BackupReadResult {
     /** The password is wrong, or the encrypted file has been damaged. The two cannot be told apart. */
     data object WrongPassword : BackupReadResult
     data object NotABackup : BackupReadResult
+
+    /** A backup from this app that is incomplete or holds something this version cannot read, so restoring it would fail. */
+    data object Damaged : BackupReadResult
     data object NewerVersion : BackupReadResult
 }
 
@@ -56,6 +61,9 @@ object BackupFile {
     const val FORMAT = "weight-glucose-backup"
     const val VERSION = 1
     private const val ITERATIONS = 210_000
+
+    /** A file asking for more key-stretching rounds than this is damaged, and would keep the phone busy for minutes. */
+    private const val MAX_ITERATIONS = 10 * ITERATIONS
     private const val KEY_BITS = 256
     private const val TAG_BITS = 128
 
@@ -90,15 +98,18 @@ object BackupFile {
         }
         if (file.optString("format") != FORMAT) return BackupReadResult.NotABackup
         if (file.optInt("version", 0) > VERSION) return BackupReadResult.NewerVersion
+        // From here the file says it is a backup from this app, so anything missing or unreadable means it is damaged.
         return try {
             val data = if (file.optBoolean("encrypted")) {
                 if (password.isNullOrEmpty()) return BackupReadResult.NeedsPassword
                 val kdf = file.getJSONObject("kdf")
                 val cipherInfo = file.getJSONObject("cipher")
+                val iterations = kdf.getInt("iterations")
+                if (iterations !in 1..MAX_ITERATIONS) return BackupReadResult.Damaged
                 val cipher = Cipher.getInstance("AES/GCM/NoPadding")
                 cipher.init(
                     Cipher.DECRYPT_MODE,
-                    key(password, unb64(kdf.getString("salt")), kdf.getInt("iterations")),
+                    key(password, unb64(kdf.getString("salt")), iterations),
                     GCMParameterSpec(TAG_BITS, unb64(cipherInfo.getString("iv"))),
                 )
                 val plain = try {
@@ -110,12 +121,40 @@ object BackupFile {
             } else {
                 file.getJSONObject("data")
             }
-            BackupReadResult.Ok(backupFrom(file, data))
+            val backup = backupFrom(file, data)
+            if (isReadable(backup.contents)) BackupReadResult.Ok(backup) else BackupReadResult.Damaged
         } catch (_: JSONException) {
-            BackupReadResult.NotABackup
+            BackupReadResult.Damaged
         } catch (_: IllegalArgumentException) {
-            BackupReadResult.NotABackup
+            BackupReadResult.Damaged
         }
+    }
+
+    /**
+     * Whether every row can be read back by the app once it is restored: each plan with its sliding scale, times
+     * and medicines, and every reading, dose and measurement. Restoring a row the app cannot read would stop the app
+     * from opening, so the whole file is refused instead and the records on the phone stay as they are.
+     */
+    private fun isReadable(contents: BackupContents): Boolean = try {
+        val planIds = contents.plans.map { it.id }.toSet()
+        require(planIds.isNotEmpty() && planIds.size == contents.plans.size)
+        require(contents.bands.all { it.planId in planIds } && contents.slots.all { it.planId in planIds } && contents.medicines.all { it.planId in planIds })
+        contents.plans.forEach { plan ->
+            val details = PlanWithDetails(
+                plan,
+                contents.bands.filter { it.planId == plan.id },
+                contents.slots.filter { it.planId == plan.id },
+                contents.medicines.filter { it.planId == plan.id },
+            )
+            require(details.toDomain().scale.isValid)
+        }
+        contents.readings.forEach { it.toDomain() }
+        contents.doses.forEach { it.toDomain() }
+        contents.measurements.forEach { it.toDomain() }
+        true
+    } catch (_: RuntimeException) {
+        // Unknown names, impossible dates and times, and broken scales all end up here.
+        false
     }
 
     private fun key(password: String, salt: ByteArray, iterations: Int = ITERATIONS): SecretKeySpec {

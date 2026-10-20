@@ -63,12 +63,7 @@ object PromptBuilder {
         fun slotName(slot: Slot) = slotName(slot, naming)
         appendLine("FACTS (today is ${today.format(dayFormat)})")
         appendLine("Target BGL range: ${Measures.formatTenths(plan.targets.lowTenths)} to ${Measures.formatTenths(plan.targets.highTenths)} mmol/L. Low is below ${Measures.formatTenths(plan.targets.hypoTenths)} mmol/L.")
-        appendLine("Sliding scale for ${plan.correctionInsulin}:")
-        plan.scale.bands.forEachIndexed { index, band ->
-            val lower = Measures.formatTenths(plan.scale.lowerTenths(index))
-            val range = band.upperTenths?.let { "$lower to ${Measures.formatTenths(it)}" } ?: "above ${Measures.formatTenths(plan.scale.lowerTenths(index) - 1)}"
-            appendLine("- $range mmol/L: ${band.units} units")
-        }
+        // The sliding scale is left out on purpose: with it, the model could work out a dose, which only the check-in may do.
         val prescribedTimes = plan.slots.filter { it.correctionPrescribed }.joinToString { slotName(it.slot) }
         appendLine("The prescription lists ${plan.correctionInsulin} at: ${prescribedTimes.ifBlank { "no set times" }}.")
         if (plan.medicines.isNotEmpty()) {
@@ -133,9 +128,11 @@ object PromptBuilder {
         }
     }
 
-    /** Every insulin amount the model may mention: the scale, the plan's medicines, recorded doses and the totals in [summaries]. */
+    /**
+     * Every insulin amount the model may mention: the plan's medicines, recorded doses and the totals in [summaries].
+     * The sliding scale's amounts are not included, so an answer that works out a dose from the scale is caught.
+     */
     fun allowedAmounts(plan: Plan, doses: List<DoseRecord>, summaries: List<DoseSummary> = emptyList()): Set<Double> = buildSet {
-        plan.scale.bands.forEach { add(it.units.toDouble()) }
         plan.medicines.forEach { addAll(it.doses.values) }
         doses.forEach { dose ->
             dose.givenAmount?.let(::add)

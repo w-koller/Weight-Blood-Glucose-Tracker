@@ -66,6 +66,20 @@ object SlotResolver {
     }
 }
 
+/** A rule for the check times a person enters for their plan. */
+object CheckTimes {
+    /**
+     * True when [times], given in the order of the checks (breakfast, lunch, dinner, bedtime), are all different and
+     * each comes later in the day than the one before. The last may fall after midnight, as long as it comes before
+     * the first one again. Two checks at the same time, or a bedtime set to the morning by mistake, would file
+     * readings under the wrong check and miss the warning about a dose at a time the prescription does not list.
+     */
+    fun inOrder(times: List<LocalTime>): Boolean {
+        val start = times.firstOrNull()?.minuteOfDay() ?: return true
+        return times.map { circularOffset(start, it.minuteOfDay()) }.zipWithNext().all { (earlier, later) -> later > earlier }
+    }
+}
+
 internal fun LocalTime.minuteOfDay(): Int = hour * 60 + minute
 
 internal fun circularOffset(from: Int, to: Int): Int = ((to - from) % MINUTES_PER_DAY + MINUTES_PER_DAY) % MINUTES_PER_DAY

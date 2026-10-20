@@ -57,6 +57,12 @@ sealed interface AssistantReply {
     /** The question mentioned an emergency, so the app answers it instead of the model. */
     data object Urgent : AssistantReply
 
+    /** The question described signs of a low level, so the app says what to do instead of the model. */
+    data object Hypo : AssistantReply
+
+    /** The question mentioned suicide or self-harm, so the app gives numbers to call instead of the model. */
+    data object Crisis : AssistantReply
+
     data object Failed : AssistantReply
 }
 
@@ -107,6 +113,8 @@ class AssistantService(
         return when (AssistantGuard.classify(question, names)) {
             QuestionKind.DOSE -> flowOfReply(AssistantReply.DoseQuestion)
             QuestionKind.URGENT -> flowOfReply(AssistantReply.Urgent)
+            QuestionKind.HYPO -> flowOfReply(AssistantReply.Hypo)
+            QuestionKind.CRISIS -> flowOfReply(AssistantReply.Crisis)
             QuestionKind.GENERAL -> generate(context, question, history)
         }
     }

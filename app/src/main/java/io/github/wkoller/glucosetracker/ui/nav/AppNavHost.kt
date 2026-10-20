@@ -89,11 +89,12 @@ fun AppNavHost(
     onSlotOpened: () -> Unit,
     openBackup: Boolean,
     onBackupOpened: () -> Unit,
+    openMedicinesOnly: Boolean = false,
     navController: NavHostController = rememberNavController(),
 ) {
-    LaunchedEffect(openSlot) {
+    LaunchedEffect(openSlot, openMedicinesOnly) {
         if (openSlot != null && !startWithSetup) {
-            navController.navigate(Routes.checkIn(openSlot)) { launchSingleTop = true }
+            navController.navigate(Routes.checkIn(openSlot, openMedicinesOnly)) { launchSingleTop = true }
             onSlotOpened()
         }
     }

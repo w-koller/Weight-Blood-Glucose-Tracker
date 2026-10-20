@@ -70,12 +70,13 @@ class ReminderScheduler(
         val day = repository.dayRecords(repository.logicalToday(plan))
         val state = NextStepEngine.progress(plan, now, day).firstOrNull { it.slot == slot }?.state
         if (state == SlotState.DONE) return
-        showCheckReminder(plan, slot, settings.current().slotNaming)
+        showCheckReminder(plan, slot, settings.current().slotNaming, readingDone = day.readings.any { it.slot == slot })
     }
 
-    fun showCheckReminder(plan: Plan, slot: Slot, naming: SlotNaming) {
+    /** With [readingDone], only the medicines are left, so the reminder asks for them and opens straight to them. */
+    fun showCheckReminder(plan: Plan, slot: Slot, naming: SlotNaming, readingDone: Boolean = false) {
         val phrase = context.getString(slot.phraseRes(naming))
-        val checks = plan.schedule(slot)?.checkBgl == true
+        val checks = plan.schedule(slot)?.checkBgl == true && !readingDone
         val title = context.getString(if (checks) R.string.reminder_check_title else R.string.reminder_medicines_title)
         val body = context.getString(if (checks) R.string.reminder_check_body else R.string.reminder_medicines_body, phrase)
         val snoozeIntent = Intent(context, ReminderReceiver::class.java)
@@ -89,8 +90,8 @@ class ReminderScheduler(
                 .setContentTitle(title)
                 .setContentText(body)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-                .setContentIntent(openApp(slot))
-                .addAction(R.drawable.ic_water_drop, context.getString(R.string.reminder_record_now), openApp(slot))
+                .setContentIntent(openApp(slot, medicinesOnly = !checks))
+                .addAction(R.drawable.ic_water_drop, context.getString(R.string.reminder_record_now), openApp(slot, medicinesOnly = !checks))
                 .addAction(R.drawable.ic_schedule, context.getString(R.string.reminder_snooze), snooze)
                 .setCategory(NotificationCompat.CATEGORY_REMINDER)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -144,10 +145,11 @@ class ReminderScheduler(
         }
     }
 
-    private fun openApp(slot: Slot): PendingIntent {
+    private fun openApp(slot: Slot, medicinesOnly: Boolean = false): PendingIntent {
         val intent = Intent(context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .putExtra(MainActivity.EXTRA_SLOT, slot.name)
+            .putExtra(MainActivity.EXTRA_MEDICINES_ONLY, medicinesOnly)
         return PendingIntent.getActivity(context, 400 + slot.ordinal, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
 

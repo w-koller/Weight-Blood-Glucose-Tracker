@@ -1,14 +1,9 @@
 package io.github.wkoller.glucosetracker.ui.plan
 
-import android.Manifest
 import android.app.AlarmManager
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.provider.Settings
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -31,7 +26,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.wkoller.glucosetracker.R
@@ -60,6 +55,7 @@ import io.github.wkoller.glucosetracker.ui.components.StepScaffold
 import io.github.wkoller.glucosetracker.ui.components.TimeField
 import io.github.wkoller.glucosetracker.ui.components.ToggleRow
 import io.github.wkoller.glucosetracker.ui.components.label
+import io.github.wkoller.glucosetracker.ui.components.rememberNotificationPermission
 import io.github.wkoller.glucosetracker.ui.components.labelRes
 import io.github.wkoller.glucosetracker.ui.components.phrase
 import io.github.wkoller.glucosetracker.ui.settings.SlotNamingCard
@@ -100,6 +96,7 @@ fun draftErrorText(error: DraftError, draft: PlanDraft? = null): String = when (
     is DraftError.BandUnitsOutOfRange -> stringResource(R.string.error_band_units_range, rowName(draft, error.row))
     DraftError.ScaleNotChecked -> stringResource(R.string.error_scale_not_checked)
     DraftError.NoCheckTimes -> stringResource(R.string.error_no_check_times)
+    DraftError.TimesOutOfOrder -> stringResource(R.string.error_times_order)
     DraftError.MedicineNameMissing -> stringResource(R.string.error_medicine_name)
     DraftError.MedicineNoTimes -> stringResource(R.string.error_medicine_times)
     DraftError.MedicineUnitMissing -> stringResource(R.string.error_medicine_unit)
@@ -113,6 +110,7 @@ fun draftErrorText(error: DraftError, draft: PlanDraft? = null): String = when (
     DraftError.TargetHighInvalid -> stringResource(R.string.error_target_high)
     DraftError.HypoInvalid -> stringResource(R.string.error_hypo)
     DraftError.TargetRangeOrder -> stringResource(R.string.error_target_order)
+    DraftError.HypoAboveRange -> stringResource(R.string.error_hypo_above_range)
 }
 
 @Composable
@@ -580,12 +578,11 @@ fun ColumnScope.PermissionsStep() {
     var notificationsAllowed by remember { mutableStateOf(false) }
     var alarmsAllowed by remember { mutableStateOf(false) }
     LifecycleResumeEffect(Unit) {
-        notificationsAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        notificationsAllowed = NotificationManagerCompat.from(context).areNotificationsEnabled()
         alarmsAllowed = context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
         onPauseOrDispose { }
     }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { notificationsAllowed = it }
+    val requestNotifications = rememberNotificationPermission { notificationsAllowed = it }
 
     Body(stringResource(R.string.setup_permissions_body))
     if (notificationsAllowed) {
@@ -593,7 +590,7 @@ fun ColumnScope.PermissionsStep() {
     } else {
         BigButton(
             stringResource(R.string.setup_allow_notifications),
-            onClick = { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) launcher.launch(Manifest.permission.POST_NOTIFICATIONS) },
+            onClick = requestNotifications,
             icon = R.drawable.ic_notifications,
         )
     }
@@ -618,6 +615,7 @@ fun ColumnScope.ReviewStep(ui: SetupUi, vm: PlanSetupViewModel) {
     val context = LocalContext.current
     val draft = ui.draft
     val insulin = draft.correctionInsulin
+    if (ui.saveFailed) NoticeCard(NoticeKind.DANGER, stringResource(R.string.setup_save_failed_title), stringResource(R.string.setup_save_failed))
     if (ui.mode != SetupMode.EDIT) Body(stringResource(R.string.setup_review_body))
 
     if (ui.mode == SetupMode.FIRST) {

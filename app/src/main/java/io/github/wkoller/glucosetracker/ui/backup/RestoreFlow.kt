@@ -68,6 +68,7 @@ fun rememberRestoreFlow(onRestored: () -> Unit): () -> Unit {
         BackupReadResult.NeedsPassword -> RestoreStage.AskPassword(uri, wrong = false)
         BackupReadResult.WrongPassword -> RestoreStage.AskPassword(uri, wrong = true)
         BackupReadResult.NotABackup -> RestoreStage.Failed(R.string.backup_not_a_backup)
+        BackupReadResult.Damaged -> RestoreStage.Failed(R.string.backup_damaged)
         BackupReadResult.NewerVersion -> RestoreStage.Failed(R.string.backup_newer_version)
     }
 

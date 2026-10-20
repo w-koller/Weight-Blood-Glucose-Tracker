@@ -592,6 +592,18 @@
     <string name="edit_note_hint">For example, I did not have lunch today</string>
     <string name="logbook_with_note">%1$s. Note: %2$s</string>
     <string name="checkin_no_plan">Your plan has not been set up yet. Please set it up in Settings › Your plan, with your doctor’s order in front of you. The check-in then shows the dose for each reading.</string>
+    <string name="home_reminders_blocked">The app cannot show your reminders until you allow notifications. Please allow them, so a reminder appears at each check time.</string>
+    <string name="assistant_hypo_title">Signs of a low blood glucose level</string>
+    <string name="assistant_hypo_answer">Feeling shaky, sweaty, dizzy or light-headed can be a sign that your blood glucose level is low. Please check your blood glucose level now. Please have some fast-acting sugar, such as half a glass of fruit juice or 6 to 7 jellybeans, if the reading is low, and check your level again in 15 minutes. Please call 000 straight away if you feel very unwell.</string>
+    <string name="assistant_crisis_title">Someone to talk to</string>
+    <string name="assistant_crisis_answer">Please call 000 now if you are in danger or might act on these thoughts. Lifeline is there for anyone who needs to talk, at any time of the day or night, on 13 11 14.</string>
+    <string name="assistant_call_lifeline">Call Lifeline on 13 11 14</string>
+    <string name="setup_save_failed_title">The plan could not be saved</string>
+    <string name="setup_save_failed">Something went wrong while saving your plan. Please try again.</string>
+    <string name="error_times_order">Please check the times. Each check needs its own time, later in the day than the check above it. Bedtime can be after midnight.</string>
+    <string name="error_hypo_above_range">Please check your low level. It needs to be the same as, or below, the bottom of your target range.</string>
+    <string name="download_progress_spoken">%1$d%% downloaded</string>
+    <string name="backup_damaged">This backup file is damaged, so it cannot be restored. Your records on this phone have not changed. Please try another backup file.</string>
     <string name="reminder_channel">Reminders</string>
     <string name="reminder_channel_description">Reminders to check your blood glucose level and take your medicines.</string>
     <string name="reminder_check_title">Time to check your blood glucose level</string>
@@ -881,6 +893,10 @@
     <plurals name="medicines_adherence">
         <item quantity="one">Recorded as taken %1$d of %2$d time</item>
         <item quantity="other">Recorded as taken %1$d of %2$d times</item>
+    </plurals>
+    <plurals name="checkin_low_timer_spoken">
+        <item quantity="one">Please check your level again at %1$s, in about %2$d minute.</item>
+        <item quantity="other">Please check your level again at %1$s, in about %2$d minutes.</item>
     </plurals>
     <plurals name="calendar_days_complete">
         <item quantity="one">%1$d day was fully recorded</item>

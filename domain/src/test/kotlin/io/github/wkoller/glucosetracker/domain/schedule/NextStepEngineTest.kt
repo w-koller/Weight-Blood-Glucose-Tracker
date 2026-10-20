@@ -30,9 +30,10 @@ class NextStepEngineTest {
     }
 
     @Test
-    fun `breakfast stays due until its medicines are recorded`() {
+    fun `once the breakfast reading is in, its medicines come next`() {
         val readings = listOf(Fixtures.reading(Slot.BREAKFAST, 137))
-        assertEquals(NextStep.CheckIn(Slot.BREAKFAST, LocalTime.of(7, 30)), NextStepEngine.next(Fixtures.plan(), at(8), day(readings)))
+        // Not a second check: the reading is already recorded.
+        assertEquals(NextStep.Medicines(Slot.BREAKFAST, LocalTime.of(7, 30)), NextStepEngine.next(Fixtures.plan(), at(8), day(readings)))
     }
 
     @Test

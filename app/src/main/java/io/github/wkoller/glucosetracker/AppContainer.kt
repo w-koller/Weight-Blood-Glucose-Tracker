@@ -20,7 +20,7 @@ import java.time.Clock
 /** Builds the app's shared objects once. Screens reach it through [TrackerApp]. */
 class AppContainer(context: Context) {
     val appContext: Context = context.applicationContext
-    val clock: Clock = Clock.systemDefaultZone()
+    val clock: Clock = PhoneClock
     val database: AppDatabase = AppDatabase.create(appContext)
     val repository = TrackerRepository(database, clock)
     val settingsStore = SettingsStore(appContext)

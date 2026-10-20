@@ -21,6 +21,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -31,6 +34,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.wkoller.glucosetracker.R
 import io.github.wkoller.glucosetracker.domain.format.Measures
@@ -40,6 +44,7 @@ import io.github.wkoller.glucosetracker.domain.schedule.Greetings
 import io.github.wkoller.glucosetracker.domain.schedule.NextStep
 import io.github.wkoller.glucosetracker.domain.schedule.SlotState
 import io.github.wkoller.glucosetracker.ui.UiFormat
+import io.github.wkoller.glucosetracker.ui.appContainer
 import io.github.wkoller.glucosetracker.ui.appViewModel
 import io.github.wkoller.glucosetracker.ui.components.BigButton
 import io.github.wkoller.glucosetracker.ui.components.ButtonStyle
@@ -48,6 +53,7 @@ import io.github.wkoller.glucosetracker.ui.components.NoticeKind
 import io.github.wkoller.glucosetracker.ui.components.SectionCard
 import io.github.wkoller.glucosetracker.ui.components.label
 import io.github.wkoller.glucosetracker.ui.components.phrase
+import io.github.wkoller.glucosetracker.ui.components.rememberNotificationPermission
 import io.github.wkoller.glucosetracker.ui.components.tomorrowPhrase
 import io.github.wkoller.glucosetracker.ui.theme.LocalStatusColors
 import io.github.wkoller.glucosetracker.ui.theme.LocalUiPrefs
@@ -68,6 +74,16 @@ fun HomeScreen(actions: HomeActions) {
     val vm = appViewModel { container, _ -> HomeViewModel(container) }
     val ui by vm.ui.collectAsStateWithLifecycle()
     val simple = LocalUiPrefs.current.simpleMode
+    val container = appContainer()
+    val settings by container.settingsStore.settings.collectAsStateWithLifecycle(null)
+    // Read again each time the screen returns, for example from the phone's settings.
+    var notificationsAllowed by remember { mutableStateOf(true) }
+    LifecycleResumeEffect(Unit) {
+        notificationsAllowed = container.reminders.notificationsAllowed
+        onPauseOrDispose { }
+    }
+    val requestNotifications = rememberNotificationPermission { notificationsAllowed = it }
+    val wantsReminders = settings?.remindersOn == true && ui.plan?.activeSlots?.any { it.reminderOn } == true
 
     Scaffold { padding ->
         Column(
@@ -89,6 +105,13 @@ fun HomeScreen(actions: HomeActions) {
                     pluralStringResource(R.plurals.lows_body, pattern.episodes, pattern.episodes, pattern.days),
                 ) {
                     BigButton(stringResource(R.string.lows_understood), onClick = vm::acknowledgeLows, icon = R.drawable.ic_check)
+                }
+            }
+
+            // Also shown in simple mode: without notifications, no reminder can appear.
+            if (wantsReminders && !notificationsAllowed) {
+                NoticeCard(NoticeKind.WARNING, stringResource(R.string.reminders_no_notifications_title), stringResource(R.string.home_reminders_blocked)) {
+                    BigButton(stringResource(R.string.setup_allow_notifications), onClick = requestNotifications, icon = R.drawable.ic_notifications)
                 }
             }
 
