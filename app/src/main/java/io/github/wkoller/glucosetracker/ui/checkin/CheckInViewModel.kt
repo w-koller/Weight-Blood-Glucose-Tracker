@@ -98,7 +98,12 @@ class CheckInViewModel(private val container: AppContainer, handle: SavedStateHa
 
     init {
         viewModelScope.launch {
-            val plan = repository.currentPlan() ?: return@launch
+            val plan = repository.currentPlan()
+            if (plan == null) {
+                // Without a plan there is no scale to give a dose from, so the screen says so instead of waiting.
+                _ui.update { it.copy(loading = false) }
+                return@launch
+            }
             val slot = requestedSlot ?: SlotResolver.resolve(plan, repository.now().toLocalTime())
             _ui.update { it.copy(loading = false, plan = plan, slot = slot, date = repository.logicalToday(plan)) }
             if (medicinesOnly) goToMedicines()

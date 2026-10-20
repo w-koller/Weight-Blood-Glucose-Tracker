@@ -1,5 +1,6 @@
 package io.github.wkoller.glucosetracker.ui.nav
 
+import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
@@ -133,8 +134,11 @@ fun AppNavHost(
         }
         composable(Routes.SETUP, arguments = listOf(navArgument("mode") { type = NavType.StringType; defaultValue = SetupMode.FIRST.name })) { entry ->
             val first = entry.arguments?.getString("mode") == SetupMode.FIRST.name
+            val activity = LocalActivity.current
+            val closeApp: () -> Unit = { activity?.finish() }
             PlanSetupScreen(
-                onClose = back,
+                // Nothing comes before the first setup, so Back from its first step closes the app, as on any first screen.
+                onClose = if (first) closeApp else back,
                 onRestored = { navController.navigate(Routes.HOME) { popUpTo(0) { inclusive = true } } },
                 onFinished = {
                     if (first) {

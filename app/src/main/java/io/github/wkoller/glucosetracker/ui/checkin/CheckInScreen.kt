@@ -74,9 +74,12 @@ fun CheckInScreen(onClose: () -> Unit, onMeasure: (String) -> Unit, onCheckIn: (
     val ui by vm.ui.collectAsStateWithLifecycle()
     BackHandler { if (!vm.back()) onClose() }
 
-    val plan = ui.plan
-    if (ui.loading || plan == null) {
+    if (ui.loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        return
+    }
+    if (ui.plan == null) {
+        NoPlanStep(onClose)
         return
     }
     val onBack = { if (!vm.back()) onClose() }
@@ -94,6 +97,20 @@ fun CheckInScreen(onClose: () -> Unit, onMeasure: (String) -> Unit, onCheckIn: (
     }
 
     ui.confirm?.let { pending -> DoseConfirmDialog(ui, pending, vm) }
+}
+
+/** Shown in place of the check-in when no plan has been set up, so there is no scale to give a dose from. */
+@Composable
+private fun NoPlanStep(onClose: () -> Unit) {
+    StepScaffold(
+        step = 0,
+        stepCount = 0,
+        title = stringResource(R.string.home_check_bgl),
+        onBack = onClose,
+        actions = { BigButton(stringResource(R.string.go_home), onClick = onClose, icon = R.drawable.ic_home) },
+    ) {
+        Text(stringResource(R.string.checkin_no_plan), style = MaterialTheme.typography.bodyLarge)
+    }
 }
 
 @Composable

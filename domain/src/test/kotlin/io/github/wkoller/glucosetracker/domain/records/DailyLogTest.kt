@@ -36,9 +36,31 @@ class DailyLogTest {
             Fixtures.fixed(Fixtures.premix, Slot.BREAKFAST, date = day1.plusDays(1)),
         )
         val now = LocalDateTime.of(day1.plusDays(1), LocalTime.of(12, 0))
-        val premix = AdherenceCalculator.calculate(plan, day1, now, day1.plusDays(1), doses).first { it.medicineKey == "premix" }
+        val premix = AdherenceCalculator.calculate(plan, listOf(plan), Fixtures.zone, day1, now, day1.plusDays(1), doses).first { it.medicineKey == "premix" }
         assertEquals(3, premix.scheduled)
         assertEquals(2, premix.given)
         assertEquals(1, premix.skipped)
+    }
+
+    @Test
+    fun `adherence starts on the day the plan started`() {
+        val plan = Fixtures.plan().let { it.copy(effectiveFrom = Fixtures.at(day1, 9), goals = it.goals.copy(startDate = day1)) }
+        val today = day1.plusDays(1)
+        val now = LocalDateTime.of(today, LocalTime.of(12, 0))
+        // A week is asked for, but only day 1 and this morning had the plan.
+        val premix = AdherenceCalculator.calculate(plan, listOf(plan), Fixtures.zone, today.minusDays(6), now, today, emptyList())
+            .first { it.medicineKey == "premix" }
+        assertEquals(3, premix.scheduled)
+    }
+
+    @Test
+    fun `a medicine added to the plan is counted from the day it was added`() {
+        val first = Fixtures.plan(medicines = listOf(Fixtures.premix))
+        val second = Fixtures.plan().copy(id = 2, version = 2, effectiveFrom = Fixtures.at(day1, 9))
+        val today = day1.plusDays(1)
+        val now = LocalDateTime.of(today, LocalTime.of(12, 0))
+        val result = AdherenceCalculator.calculate(second, listOf(second, first), Fixtures.zone, day1.minusDays(1), now, today, emptyList())
+        assertEquals(1 + 1, result.first { it.medicineKey == "tablet" }.scheduled)
+        assertEquals(2 + 2 + 1, result.first { it.medicineKey == "premix" }.scheduled)
     }
 }

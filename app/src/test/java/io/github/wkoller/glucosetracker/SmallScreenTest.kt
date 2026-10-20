@@ -29,6 +29,7 @@ import io.github.wkoller.glucosetracker.ui.plan.UnlockScreen
 import io.github.wkoller.glucosetracker.ui.theme.TrackerTheme
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -183,6 +184,18 @@ class SmallScreenTest {
         compose.onNodeWithTag("key_back").assertIsDisplayed().assertHeightIsAtLeast(MIN_KEY)
         compose.onNodeWithText("Unlock", substring = true).assertIsDisplayed()
         shot("small_08_pin_largest")
+    }
+
+    @Test
+    fun `a PIN that starts with 0 unlocks`() {
+        val salt = PinHasher.newSalt()
+        runBlocking { app.container.settingsStore.update { it.copy(pinSalt = salt, pinHash = PinHasher.hash("0412", salt)) } }
+        var unlocked = false
+        show(Settings(setupDone = true)) { UnlockScreen(onBack = {}, onUnlocked = { unlocked = true }) }
+        waitFor("Please enter your PIN")
+        type("0412")
+        click("Unlock")
+        assertTrue("The PIN 0412 should unlock the plan", unlocked)
     }
 
     @Test

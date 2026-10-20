@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import java.time.LocalDate
+import java.time.ZoneId
 
 data class MedicinesUi(
     val plan: Plan? = null,
@@ -47,16 +48,19 @@ class MedicinesViewModel(container: AppContainer) : ViewModel() {
 
     val ui: StateFlow<MedicinesUi> = combine(
         repository.activePlan,
+        repository.planHistory,
         repository.doses(todayDate.minusDays(29), todayDate.plusDays(1)),
-    ) { plan, doses ->
+    ) { plan, history, doses ->
         if (plan == null) return@combine MedicinesUi()
         val today = repository.logicalToday(plan)
         val now = repository.now()
+        // Each day is judged against the plan of the time, so days before the plan or a medicine started are not counted.
+        val zone = ZoneId.systemDefault()
         MedicinesUi(
             plan = plan,
             today = doses.filter { it.date == today && it.kind == DoseKind.FIXED },
-            week = AdherenceCalculator.calculate(plan, today.minusDays(6), now, today, doses),
-            month = AdherenceCalculator.calculate(plan, today.minusDays(29), now, today, doses),
+            week = AdherenceCalculator.calculate(plan, history, zone, today.minusDays(6), now, today, doses),
+            month = AdherenceCalculator.calculate(plan, history, zone, today.minusDays(29), now, today, doses),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MedicinesUi())
 }

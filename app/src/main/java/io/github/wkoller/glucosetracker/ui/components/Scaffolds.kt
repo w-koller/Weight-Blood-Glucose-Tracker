@@ -187,6 +187,7 @@ fun NumberEntryScaffold(
     error: String? = null,
     maxDecimals: Int = 1,
     maxIntegerDigits: Int = 3,
+    keepLeadingZeros: Boolean = false,
     header: @Composable ColumnScope.() -> Unit = {},
 ) {
     BoxWithConstraints {
@@ -206,6 +207,7 @@ fun NumberEntryScaffold(
                                 modifier = Modifier.weight(1f, fill = false),
                                 maxDecimals = maxDecimals,
                                 maxIntegerDigits = maxIntegerDigits,
+                                keepLeadingZeros = keepLeadingZeros,
                                 keyHeight = keyHeight,
                             )
                             action()
@@ -253,6 +255,7 @@ fun NumberEntryScaffold(
                         modifier = Modifier.weight(1f).align(Alignment.CenterVertically).padding(horizontal = 16.dp, vertical = 12.dp),
                         maxDecimals = maxDecimals,
                         maxIntegerDigits = maxIntegerDigits,
+                        keepLeadingZeros = keepLeadingZeros,
                         keyHeight = keyHeight,
                     )
                 }

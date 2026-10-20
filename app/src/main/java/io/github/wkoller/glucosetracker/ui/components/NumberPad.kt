@@ -77,6 +77,30 @@ fun ValueDisplay(value: String, unit: String, modifier: Modifier = Modifier) {
     }
 }
 
+/** What a key press does to the text on the keypad, kept apart from the keys so it can be tested on its own. */
+internal object NumberPadInput {
+    /**
+     * The text after pressing [key], which is a digit, "." or "back". A number drops a leading zero, as
+     * on a calculator. A PIN is a row of digits rather than a number, so with [keepLeadingZeros] its
+     * zeros stay.
+     */
+    fun next(value: String, key: String, maxDecimals: Int, maxIntegerDigits: Int, keepLeadingZeros: Boolean = false): String = when (key) {
+        "back" -> value.dropLast(1)
+        "." -> if (maxDecimals == 0 || '.' in value) value else (value.ifEmpty { "0" } + ".")
+        else -> {
+            val parts = (value + key).split('.')
+            val integer = if (keepLeadingZeros) parts[0] else parts[0].trimStart('0')
+            val integerOk = integer.length <= maxIntegerDigits
+            val decimalOk = parts.size < 2 || parts[1].length <= maxDecimals
+            when {
+                !integerOk || !decimalOk -> value
+                value == "0" && !keepLeadingZeros -> key
+                else -> value + key
+            }
+        }
+    }
+}
+
 /**
  * A large on-screen keypad. It avoids the phone keyboard, whose keys are small and whose layout
  * changes between phones.
@@ -88,23 +112,14 @@ fun NumberPad(
     modifier: Modifier = Modifier,
     maxDecimals: Int = 1,
     maxIntegerDigits: Int = 3,
+    keepLeadingZeros: Boolean = false,
     keyHeight: Dp = 68.dp,
 ) {
     val haptics = LocalHapticFeedback.current
     val prefs = LocalUiPrefs.current
     fun press(key: String) {
         if (prefs.haptics) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-        val next = when (key) {
-            "back" -> value.dropLast(1)
-            "." -> if (maxDecimals == 0 || '.' in value) value else (value.ifEmpty { "0" } + ".")
-            else -> {
-                val parts = (value + key).split('.')
-                val integerOk = parts[0].trimStart('0').length <= maxIntegerDigits
-                val decimalOk = parts.size < 2 || parts[1].length <= maxDecimals
-                if (integerOk && decimalOk) (if (value == "0") key else value + key) else value
-            }
-        }
-        onValueChange(next)
+        onValueChange(NumberPadInput.next(value, key, maxDecimals, maxIntegerDigits, keepLeadingZeros))
     }
     val pointLabel = stringResource(R.string.number_point)
     // The digits are sized from the key, not the text-size setting, so they always fit inside it.

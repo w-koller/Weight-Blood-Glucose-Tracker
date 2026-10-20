@@ -1,6 +1,9 @@
 package io.github.wkoller.glucosetracker
 
+import android.app.Activity
 import android.graphics.Bitmap
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -44,6 +47,7 @@ import io.github.wkoller.glucosetracker.ui.assistant.PERIOD_SUGGESTIONS
 import io.github.wkoller.glucosetracker.ui.checkin.CheckInScreen
 import io.github.wkoller.glucosetracker.ui.home.HomeActions
 import io.github.wkoller.glucosetracker.ui.home.HomeScreen
+import io.github.wkoller.glucosetracker.ui.nav.AppNavHost
 import io.github.wkoller.glucosetracker.ui.plan.PlanSetupScreen
 import io.github.wkoller.glucosetracker.ui.progress.ProgressContent
 import io.github.wkoller.glucosetracker.ui.progress.ProgressScreen
@@ -195,6 +199,19 @@ class ScreenFlowTest {
         val settings = runBlocking { app.container.settingsStore.current() }
         assertEquals("Mary Smith", settings.fullName)
         assertEquals(false, settings.assistantEnabled)
+    }
+
+    @Test
+    fun `Back on the first welcome screen closes the app`() {
+        var activity: Activity? = null
+        show(Settings()) {
+            activity = LocalActivity.current
+            AppNavHost(startWithSetup = true, openSlot = null, onSlotOpened = {}, openBackup = false, onBackupOpened = {})
+        }
+        waitFor("Welcome")
+        // Before, Back left the setup for a home screen with no plan, where a check-in never finished loading.
+        compose.runOnUiThread { (activity as ComponentActivity).onBackPressedDispatcher.onBackPressed() }
+        assertTrue(activity!!.isFinishing)
     }
 
     private fun openScaleStep() {

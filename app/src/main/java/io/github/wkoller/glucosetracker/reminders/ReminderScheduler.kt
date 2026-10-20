@@ -169,8 +169,9 @@ class ReminderScheduler(
         if (alarms.canScheduleExactAlarms()) {
             alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, operation)
         } else {
-            // Without permission for exact alarms, the phone may deliver the reminder up to ten minutes late.
-            alarms.setWindow(AlarmManager.RTC_WAKEUP, millis, WINDOW.toMillis(), operation)
+            // Without permission for exact alarms the reminder may come later, but it still comes while the phone is
+            // idle. An alarm set with setWindow would wait until the phone is next in use.
+            alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, operation)
         }
     }
 
@@ -184,6 +185,5 @@ class ReminderScheduler(
         private const val RECHECK_NOTIFICATION = 50
         private const val BACKUP_NOTIFICATION = 60
         val SNOOZE: Duration = Duration.ofMinutes(15)
-        private val WINDOW: Duration = Duration.ofMinutes(10)
     }
 }

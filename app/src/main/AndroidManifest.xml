@@ -3,7 +3,10 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- Check reminders and the 15-minute recheck after a low reading must arrive on time, even while the phone is idle.
+         Android 13 and later grant USE_EXACT_ALARM when the app is installed; Android 12 grants SCHEDULE_EXACT_ALARM. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Android's download manager requires this to download the assistant model. Records are never sent anywhere. -->
     <uses-permission android:name="android.permission.INTERNET" />

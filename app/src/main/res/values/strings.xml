@@ -591,6 +591,7 @@
     <string name="edit_note">Note</string>
     <string name="edit_note_hint">For example, I did not have lunch today</string>
     <string name="logbook_with_note">%1$s. Note: %2$s</string>
+    <string name="checkin_no_plan">Your plan has not been set up yet. Please set it up in Settings › Your plan, with your doctor’s order in front of you. The check-in then shows the dose for each reading.</string>
     <string name="reminder_channel">Reminders</string>
     <string name="reminder_channel_description">Reminders to check your blood glucose level and take your medicines.</string>
     <string name="reminder_check_title">Time to check your blood glucose level</string>
@@ -604,8 +605,8 @@
     <string name="reminders_on">Reminders</string>
     <string name="reminders_no_notifications_title">Notifications are turned off</string>
     <string name="reminders_no_notifications">The app cannot show reminders until you allow notifications. Would you like to allow them now?</string>
-    <string name="reminders_no_exact_title">Reminders may be a few minutes late</string>
-    <string name="reminders_no_exact">Your phone may delay reminders by up to ten minutes. If you allow the app to set alarms, reminders will arrive on time.</string>
+    <string name="reminders_no_exact_title">Reminders may arrive late</string>
+    <string name="reminders_no_exact">Your phone may deliver reminders late, sometimes by up to an hour. If you allow the app to set alarms, reminders will arrive on time.</string>
     <string name="reminders_times_title">Reminder times</string>
     <string name="reminders_change_in_plan">To change these times, please change your plan in Settings › Your plan.</string>
     <string name="reminders_test">Send a test reminder</string>
