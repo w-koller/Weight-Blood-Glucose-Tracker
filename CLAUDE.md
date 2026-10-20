@@ -22,6 +22,10 @@ each step fits in one picture; `SmallScreenTest` checks number entry on a 360×6
 text size and turned sideways, and saves `small_*.png`. Robolectric cannot run `PdfDocument`, so
 report pages are drawn through `PageSink`.
 
+Back uses the classic back event: `android:enableOnBackInvokedCallback="false"` in the manifest turns off the
+predictive-back preview that shrinks the window. Android calls this opt-out temporary, so check that it still
+applies before raising `targetSdk` above 36.
+
 CI (`.github/workflows/android.yml`) runs the same tasks and uploads the debug APK. It also builds a
 signed release APK when the `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and `KEY_PASSWORD`
 secrets are set. The release keystore lives at `~/.android-keys/` and must never be committed.
