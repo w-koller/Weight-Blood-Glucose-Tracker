@@ -225,7 +225,9 @@
     <string name="home_medicines">Medicines</string>
     <string name="home_logbook">Logbook</string>
     <string name="home_progress">Progress</string>
-    <string name="home_assistant">Ask a question</string>
+    <string name="home_assistant">Ask the assistant</string>
+    <string name="home_assistant_title">Questions about your records</string>
+    <string name="home_assistant_body">The assistant can answer questions about your readings, doses and weight, such as how your week went.</string>
     <string name="home_settings">Settings</string>
     <string name="home_settings_helper">Text size, your plan, reminders and more.</string>
     <string name="home_today_title">Today</string>

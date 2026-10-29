@@ -1,5 +1,15 @@
 # Changes
 
+## 1.0.0-rc.3
+
+### In the app
+
+- The home screen now has a card for the assistant, Questions about your records, just under What to do next, with an Ask the assistant button. It also shows in simple mode. Before, the only way in was an Ask a question button near the bottom, which simple mode hid.
+
+### For developers
+
+- Version 1.0.0-rc.3 (versionCode 7), published as a pre-release.
+
 ## 1.0.0-rc.2
 
 ### In the app
