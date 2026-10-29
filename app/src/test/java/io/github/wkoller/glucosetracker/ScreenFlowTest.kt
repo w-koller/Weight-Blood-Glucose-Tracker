@@ -984,6 +984,19 @@ class ScreenFlowTest {
     }
 
     @Test
+    @Config(qualifiers = "w411dp-h891dp-xhdpi")
+    fun `home has a button for the assistant near the top, also in simple mode`() {
+        seedPlan()
+        var opened = 0
+        show(Settings(setupDone = true, simpleMode = true)) { HomeScreen(HomeActions({ _, _ -> }, {}, {}, {}, {}, {}, { opened++ }, {})) }
+        waitFor("Questions about your records")
+        compose.onNodeWithText("Ask the assistant").assertIsDisplayed()
+        shot("home_08_assistant_simple")
+        click("Ask the assistant")
+        assertEquals(1, opened)
+    }
+
+    @Test
     fun `home in maximum contrast and largest text`() {
         seedPlan()
         show(Settings(setupDone = true, maxContrast = true, textSize = io.github.wkoller.glucosetracker.data.prefs.TextSize.LARGEST)) {

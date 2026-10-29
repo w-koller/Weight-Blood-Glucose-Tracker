@@ -117,6 +117,14 @@ fun HomeScreen(actions: HomeActions) {
 
             ui.nextStep?.let { NextStepCard(it, actions) }
 
+            // Near the top and shown in simple mode too, so the assistant is easy to find.
+            SectionCard(stringResource(R.string.home_assistant_title), icon = R.drawable.ic_forum) {
+                if (LocalUiPrefs.current.showHelperText) {
+                    Text(stringResource(R.string.home_assistant_body), style = MaterialTheme.typography.bodyLarge)
+                }
+                BigButton(stringResource(R.string.home_assistant), onClick = actions.assistant, icon = R.drawable.ic_forum)
+            }
+
             if (!simple && ui.slots.isNotEmpty()) TodayCard(ui)
 
             if (!simple) {
@@ -173,12 +181,6 @@ fun HomeScreen(actions: HomeActions) {
                     stringResource(R.string.home_progress),
                     onClick = actions.progress,
                     icon = R.drawable.ic_show_chart,
-                    style = ButtonStyle.SECONDARY,
-                )
-                BigButton(
-                    stringResource(R.string.home_assistant),
-                    onClick = actions.assistant,
-                    icon = R.drawable.ic_forum,
                     style = ButtonStyle.SECONDARY,
                 )
             }
