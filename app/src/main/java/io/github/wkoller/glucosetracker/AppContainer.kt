@@ -20,7 +20,7 @@ import java.time.Clock
 /** Builds the app's shared objects once. Screens reach it through [TrackerApp]. */
 class AppContainer(context: Context) {
     val appContext: Context = context.applicationContext
-    val clock: Clock = Clock.systemDefaultZone()
+    val clock: Clock = PhoneClock
     val database: AppDatabase = AppDatabase.create(appContext)
     val repository = TrackerRepository(database, clock)
     val settingsStore = SettingsStore(appContext)
@@ -30,20 +30,22 @@ class AppContainer(context: Context) {
     val reminders = ReminderScheduler(appContext, repository, settingsStore, clock)
     val models by lazy { ModelManager(appContext) }
     val backup = BackupService(appContext, database, settingsStore, clock) { reminders.rescheduleAll() }
-    val assistant by lazy { AssistantService(repository, models, settingsStore) }
+    val assistant by lazy { AssistantService(repository, models, settingsStore) { CrashReporter.record(appContext, it) } }
 
     init {
         // The speaker always uses the voice chosen in settings.
         scope.launch { settingsStore.settings.collect { speaker.choice = VoiceChoice.decode(it.voice) } }
 
-        // Ask Android to include the latest records in the phone's Google backup soon after any change.
+        // Ask Android to include the latest records in the phone's Google backup soon after any change. Room and
+        // DataStore report changes on different threads, so the requests are all made on the main thread.
         val backupManager = BackupManager(appContext)
+        val requestBackup = { appContext.mainExecutor.execute { backupManager.dataChanged() } }
         database.invalidationTracker.addObserver(
             object : InvalidationTracker.Observer(arrayOf("plans", "glucose_readings", "dose_log", "body_measurements")) {
-                override fun onInvalidated(tables: Set<String>) = backupManager.dataChanged()
+                override fun onInvalidated(tables: Set<String>) = requestBackup()
             },
         )
-        scope.launch { settingsStore.settings.drop(1).collect { backupManager.dataChanged() } }
+        scope.launch { settingsStore.settings.drop(1).collect { requestBackup() } }
     }
 
     /** Called after a plan is saved, so anything that depends on the plan can catch up. */

@@ -97,6 +97,15 @@ class PromptBuilderTest {
     }
 
     @Test
+    fun `the sliding scale is not given to the model`() {
+        val text = facts()
+        assertFalse(text, "Sliding scale" in text)
+        assertFalse(text, Regex("""mmol/L: \d+ units""").containsMatchIn(text))
+        // The prescribed times are still there, without any amounts.
+        assertTrue(text, "The prescription lists NovoRapid at: before breakfast, before lunch, before dinner." in text)
+    }
+
+    @Test
     fun `times of day replace the meal names when chosen`() {
         val text = facts(SlotNaming.TIMES_OF_DAY)
         assertTrue(text, "morning" in text)

@@ -24,6 +24,9 @@ class MainActivity : ComponentActivity() {
     /** A check-in a reminder asked to open. */
     private val openSlot = mutableStateOf<Slot?>(null)
 
+    /** True when that check-in is for the medicines only, because the reading is already recorded. */
+    private val openMedicinesOnly = mutableStateOf(false)
+
     /** True when the backup reminder asked to open Backup and restore. */
     private val openBackup = mutableStateOf(false)
 
@@ -32,6 +35,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val container = (application as TrackerApp).container
         if (savedInstanceState == null) {
+            openMedicinesOnly.value = intent?.getBooleanExtra(EXTRA_MEDICINES_ONLY, false) == true
             openSlot.value = slotFrom(intent)
             openBackup.value = intent?.getStringExtra(EXTRA_OPEN) == OPEN_BACKUP
         }
@@ -46,6 +50,7 @@ class MainActivity : ComponentActivity() {
                         AppNavHost(
                             startWithSetup = startWithSetup,
                             openSlot = openSlot.value,
+                            openMedicinesOnly = openMedicinesOnly.value,
                             onSlotOpened = { openSlot.value = null },
                             openBackup = openBackup.value,
                             onBackupOpened = { openBackup.value = false },
@@ -58,7 +63,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        slotFrom(intent)?.let { openSlot.value = it }
+        slotFrom(intent)?.let {
+            openMedicinesOnly.value = intent.getBooleanExtra(EXTRA_MEDICINES_ONLY, false)
+            openSlot.value = it
+        }
         if (intent.getStringExtra(EXTRA_OPEN) == OPEN_BACKUP) openBackup.value = true
     }
 
@@ -72,6 +80,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_SLOT = "io.github.wkoller.glucosetracker.SLOT"
+        const val EXTRA_MEDICINES_ONLY = "io.github.wkoller.glucosetracker.MEDICINES_ONLY"
         const val EXTRA_OPEN = "io.github.wkoller.glucosetracker.OPEN"
         const val OPEN_BACKUP = "backup"
     }

@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-enum class AnswerKind { MODEL, DOSE, URGENT, FAILED }
+enum class AnswerKind { MODEL, DOSE, URGENT, HYPO, CRISIS, FAILED }
 
 data class Exchange(
     val question: String,
@@ -100,6 +100,8 @@ class AssistantViewModel(private val container: AppContainer, progressDays: Int?
         is AssistantReply.Done -> exchange.copy(answer = reply.text, streaming = false, loadingModel = false)
         AssistantReply.DoseQuestion -> exchange.copy(answer = "", kind = AnswerKind.DOSE, streaming = false, loadingModel = false)
         AssistantReply.Urgent -> exchange.copy(answer = "", kind = AnswerKind.URGENT, streaming = false, loadingModel = false)
+        AssistantReply.Hypo -> exchange.copy(answer = "", kind = AnswerKind.HYPO, streaming = false, loadingModel = false)
+        AssistantReply.Crisis -> exchange.copy(answer = "", kind = AnswerKind.CRISIS, streaming = false, loadingModel = false)
         AssistantReply.Failed -> exchange.copy(kind = AnswerKind.FAILED, streaming = false, loadingModel = false)
     }
 

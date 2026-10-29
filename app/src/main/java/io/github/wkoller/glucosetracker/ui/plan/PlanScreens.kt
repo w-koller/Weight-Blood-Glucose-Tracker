@@ -222,6 +222,8 @@ fun UnlockScreen(onBack: () -> Unit, onUnlocked: () -> Unit) {
         error = if (wrong) stringResource(R.string.pin_wrong) else null,
         maxDecimals = 0,
         maxIntegerDigits = 4,
+        // A PIN such as 0412 keeps its first zero.
+        keepLeadingZeros = true,
         action = {
             BigButton(stringResource(R.string.unlock_button), onClick = {
                 if (PinHasher.matches(pin, current.pinSalt!!, current.pinHash!!)) {

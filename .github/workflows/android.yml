@@ -3,12 +3,17 @@ name: Android CI
 on:
   push:
     branches: ["**"]
+    # A tag such as v1.0.0 also publishes the signed APK as a GitHub Release.
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -18,6 +23,11 @@ jobs:
       HAS_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v7
+
+      - name: Check that strings.xml was generated from tools/strings_*.py
+        run: |
+          python3 tools/gen_strings.py
+          git diff --exit-code app/src/main/res/values/strings.xml
 
       - uses: actions/setup-java@v6
         with:
@@ -63,3 +73,40 @@ jobs:
         with:
           name: weight-glucose-tracker-release
           path: app/build/outputs/apk/release/*.apk
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check that the tag matches the app's version
+        run: |
+          version=$(sed -n 's/^ *versionName = "\(.*\)"$/\1/p' app/build.gradle.kts)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "The tag $GITHUB_REF_NAME does not match versionName $version in app/build.gradle.kts."
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      # The build job made and signed the APK. Without the signing secrets there is nothing to publish, so this fails.
+      - name: Fetch the signed release APK
+        run: gh run download "$GITHUB_RUN_ID" --name weight-glucose-tracker-release --dir apk
+
+      - name: Create the GitHub Release
+        run: |
+          apk="weight-glucose-tracker-$VERSION.apk"
+          mv apk/*.apk "$apk"
+          sha256sum "$apk" > "$apk.sha256"
+          # The notes are the section whose heading is exactly the version, so 1.0.0 does not pick up 1.0.0-rc.1's.
+          awk -v heading="## $VERSION" '$0 == heading { found = 1; next } /^## / { found = 0 } found' CHANGELOG.md > notes.md
+          # A version with a suffix, such as 1.0.0-rc.1, is published as a pre-release.
+          prerelease=""
+          case "$VERSION" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" "$apk" "$apk.sha256" --title "Weight & Glucose Tracker $VERSION" --notes-file notes.md $prerelease

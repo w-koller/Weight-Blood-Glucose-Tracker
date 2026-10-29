@@ -1,5 +1,7 @@
 package io.github.wkoller.glucosetracker.ui.components
 
+import android.content.Intent
+import android.net.Uri
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -22,10 +24,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import io.github.wkoller.glucosetracker.R
 import io.github.wkoller.glucosetracker.ui.theme.LocalStatusColors
 import io.github.wkoller.glucosetracker.ui.theme.LocalUiPrefs
 
@@ -91,4 +95,26 @@ fun BigButton(
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
         ) { content() }
     }
+}
+
+/** Australia's emergency number. */
+const val EMERGENCY_NUMBER = "000"
+
+/** Lifeline, for anyone in Australia who needs to talk to someone, at any hour. */
+const val LIFELINE_NUMBER = "131114"
+
+/**
+ * Opens the phone's dialler with [number] ready to call. The user still presses call in the dialler, so a stray
+ * tap never rings anyone.
+ */
+@Composable
+fun DialButton(text: String, number: String, modifier: Modifier = Modifier, style: ButtonStyle = ButtonStyle.SECONDARY) {
+    val context = LocalContext.current
+    BigButton(
+        text,
+        onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null))) } },
+        modifier = modifier,
+        icon = R.drawable.ic_call,
+        style = style,
+    )
 }

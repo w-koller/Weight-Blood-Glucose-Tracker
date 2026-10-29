@@ -1,10 +1,12 @@
 package io.github.wkoller.glucosetracker.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -37,6 +39,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -154,14 +160,20 @@ fun StepScaffold(
     }
 }
 
+/** Back on the left, and the step count or [action] on the right. With very large text, the right-hand item moves under Back. */
 @Composable
-private fun StepHeader(step: Int, stepCount: Int, title: String, onBack: (() -> Unit)?) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+private fun StepHeader(step: Int, stepCount: Int, title: String, onBack: (() -> Unit)?, action: (@Composable () -> Unit)? = null) {
+    FlowRow(
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
         if (onBack != null) BackButton(onBack) else Spacer(Modifier.heightIn(min = 56.dp))
-        Spacer(Modifier.weight(1f))
         if (stepCount > 1) {
             Text(stringResource(R.string.step_of, step, stepCount), style = MaterialTheme.typography.titleSmall)
         }
+        action?.invoke()
     }
     if (stepCount > 1) {
         LinearProgressIndicator(progress = { step / stepCount.toFloat() }, modifier = Modifier.fillMaxWidth().heightIn(min = 8.dp))
@@ -172,8 +184,9 @@ private fun StepHeader(step: Int, stepCount: Int, title: String, onBack: (() -> 
 /**
  * A step that asks for one number. Like a phone keyboard, the value, the keypad and the main button
  * stay fixed at the bottom, so the keys never need scrolling. Only the heading and anything in
- * [header] scroll. On a short, wide screen, such as a phone turned sideways, the keypad sits on the
- * right instead.
+ * [header] scroll, so [header] holds words only: anything to press goes in [wordKeys], beside the
+ * digits, or in [headerAction], beside Back, where the keypad can never hide it. On a short, wide
+ * screen, such as a phone turned sideways, the keypad sits on the right instead.
  */
 @Composable
 fun NumberEntryScaffold(
@@ -184,9 +197,13 @@ fun NumberEntryScaffold(
     onValueChange: (String) -> Unit,
     action: @Composable () -> Unit,
     display: String = value,
+    displayDescription: String? = null,
     error: String? = null,
     maxDecimals: Int = 1,
     maxIntegerDigits: Int = 3,
+    keepLeadingZeros: Boolean = false,
+    wordKeys: List<WordKey> = emptyList(),
+    headerAction: (@Composable () -> Unit)? = null,
     header: @Composable ColumnScope.() -> Unit = {},
 ) {
     BoxWithConstraints {
@@ -199,29 +216,33 @@ fun NumberEntryScaffold(
                         // Capped so the heading always keeps some room. When an error appears, the keys shrink to make space for it.
                         Column(Modifier.heightIn(max = maxHeight * KEYPAD_AREA_MAX), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             EntryError(error)
-                            ValueDisplay(display, unit)
+                            ValueDisplay(display, unit, description = displayDescription)
                             NumberPad(
                                 value,
                                 onValueChange,
                                 modifier = Modifier.weight(1f, fill = false),
                                 maxDecimals = maxDecimals,
                                 maxIntegerDigits = maxIntegerDigits,
+                                keepLeadingZeros = keepLeadingZeros,
                                 keyHeight = keyHeight,
+                                wordKeys = wordKeys,
                             )
                             action()
                         }
                     }
                 },
             ) { padding ->
+                val scroll = rememberScrollState()
                 Column(
                     Modifier
                         .padding(padding)
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
+                        .fadeWhenMoreBelow(scroll)
+                        .verticalScroll(scroll)
                         .padding(horizontal = 20.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    StepHeader(0, 0, title, onBack)
+                    StepHeader(0, 0, title, onBack, headerAction)
                     header()
                     Spacer(Modifier.heightIn(min = 16.dp))
                 }
@@ -231,32 +252,56 @@ fun NumberEntryScaffold(
             Scaffold { padding ->
                 Row(Modifier.padding(padding).fillMaxSize()) {
                     Column(Modifier.weight(1f).fillMaxHeight()) {
+                        val scroll = rememberScrollState()
                         Column(
                             Modifier
                                 .weight(1f)
-                                .verticalScroll(rememberScrollState())
+                                .fadeWhenMoreBelow(scroll)
+                                .verticalScroll(scroll)
                                 .padding(horizontal = 20.dp, vertical = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
-                            StepHeader(0, 0, title, onBack)
+                            StepHeader(0, 0, title, onBack, headerAction)
                             header()
                         }
                         Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             EntryError(error)
-                            ValueDisplay(display, unit)
+                            ValueDisplay(display, unit, description = displayDescription)
                             action()
                         }
                     }
                     NumberPad(
                         value,
                         onValueChange,
-                        modifier = Modifier.weight(1f).align(Alignment.CenterVertically).padding(horizontal = 16.dp, vertical = 12.dp),
+                        modifier = Modifier.weight(if (wordKeys.isEmpty()) 1f else WIDE_PAD_WITH_WORDS).align(Alignment.CenterVertically).padding(horizontal = 16.dp, vertical = 12.dp),
                         maxDecimals = maxDecimals,
                         maxIntegerDigits = maxIntegerDigits,
+                        keepLeadingZeros = keepLeadingZeros,
                         keyHeight = keyHeight,
+                        wordKeys = wordKeys,
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * Fades the bottom edge of a scrolling area while there is more to read below it, so text that runs on
+ * under the keypad looks unfinished rather than cut off.
+ */
+@Composable
+private fun Modifier.fadeWhenMoreBelow(scroll: ScrollState): Modifier {
+    val background = MaterialTheme.colorScheme.surface
+    return drawWithContent {
+        drawContent()
+        if (scroll.canScrollForward) {
+            val fade = FADE_HEIGHT.toPx().coerceAtMost(size.height / 2)
+            drawRect(
+                Brush.verticalGradient(listOf(background.copy(alpha = 0f), background), startY = size.height - fade, endY = size.height),
+                topLeft = Offset(0f, size.height - fade),
+                size = Size(size.width, fade),
+            )
         }
     }
 }
@@ -304,6 +349,11 @@ private val MAX_KEY_WIDE = 72.dp
 
 /** Below this height a screen wider than it is tall puts the keypad beside the heading. */
 private val WIDE_MAX_HEIGHT = 480.dp
+
+/** Sideways, a keypad with a column of word keys takes a little more of the width than the heading does. */
+private const val WIDE_PAD_WITH_WORDS = 1.25f
+
+private val FADE_HEIGHT = 40.dp
 
 @Composable
 private fun BottomActions(modifier: Modifier = Modifier, content: @Composable () -> Unit) {

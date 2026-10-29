@@ -7,12 +7,19 @@ import io.github.wkoller.glucosetracker.AppContainer
 import io.github.wkoller.glucosetracker.domain.model.BodyMeasurement
 import io.github.wkoller.glucosetracker.domain.model.DoseRecord
 import io.github.wkoller.glucosetracker.domain.model.GlucoseReading
+import io.github.wkoller.glucosetracker.domain.model.GlucoseTargets
 import io.github.wkoller.glucosetracker.domain.model.Plan
+import io.github.wkoller.glucosetracker.domain.progress.TrendPoint
 import io.github.wkoller.glucosetracker.domain.records.DailyLog
+import io.github.wkoller.glucosetracker.domain.records.DayChart
+import io.github.wkoller.glucosetracker.domain.records.DayCharts
 import io.github.wkoller.glucosetracker.domain.records.DayCompletion
 import io.github.wkoller.glucosetracker.domain.records.DayStatus
+import io.github.wkoller.glucosetracker.domain.records.Logbook
+import io.github.wkoller.glucosetracker.domain.records.LogbookDay
 import io.github.wkoller.glucosetracker.domain.records.PlanTimeline
 import io.github.wkoller.glucosetracker.domain.records.DayLog
+import io.github.wkoller.glucosetracker.domain.schedule.SlotResolver
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -36,8 +43,11 @@ data class CalendarUi(
 data class LogbookUi(
     val loading: Boolean = true,
     val plan: Plan? = null,
-    val days: List<DayLog> = emptyList(),
+    val days: List<LogbookDay> = emptyList(),
+    /** Every reading in [days], oldest first, for the chart above the list. */
+    val points: List<TrendPoint> = emptyList(),
     val from: LocalDate = LocalDate.now(),
+    val today: LocalDate = LocalDate.now(),
     val hasEarlier: Boolean = false,
 )
 
@@ -60,11 +70,15 @@ class LogbookViewModel(container: AppContainer) : ViewModel() {
             repository.measurements,
             firstDate,
         ) { plan, readings, doses, measurements, first ->
+            val log = DailyLog.build(readings, doses, measurements.filter { !it.date.isBefore(start) && !it.date.isAfter(today) })
+            val days = Logbook.days(log, plan?.targets ?: GlucoseTargets.DEFAULT)
             LogbookUi(
                 loading = false,
                 plan = plan,
-                days = DailyLog.build(readings, doses, measurements.filter { !it.date.isBefore(start) && !it.date.isAfter(today) }),
+                days = days,
+                points = Logbook.points(days),
                 from = start,
+                today = repository.logicalToday(plan),
                 hasEarlier = (first != null && first.isBefore(start)) || measurements.any { it.date.isBefore(start) },
             )
         }
@@ -72,6 +86,13 @@ class LogbookViewModel(container: AppContainer) : ViewModel() {
 
     fun showEarlier() {
         from.value = from.value.minusDays(PAGE_DAYS)
+    }
+
+    /** Shows earlier days until [date] is in the list, such as a day reached on the full-screen chart. */
+    fun showFrom(date: LocalDate) {
+        var start = from.value
+        while (start.isAfter(date)) start = start.minusDays(PAGE_DAYS)
+        from.value = start
     }
 
     private val month = MutableStateFlow(YearMonth.from(today))
@@ -148,5 +169,71 @@ class DayViewModel(container: AppContainer, handle: SavedStateHandle) : ViewMode
             is BodyMeasurement -> repository.addMeasurement(record)
         }
         _lastDeleted.value = null
+    }
+}
+
+data class DayChartUi(
+    val loading: Boolean = true,
+    val date: LocalDate,
+    val today: LocalDate = date,
+    val chart: DayChart? = null,
+    val targets: GlucoseTargets = GlucoseTargets.DEFAULT,
+    val canGoEarlier: Boolean = false,
+    val canGoLater: Boolean = false,
+)
+
+/**
+ * One day on the full-screen chart, with the readings of the days before it. The day shown is kept in [handle],
+ * so it stays the same when the phone turns.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class DayChartViewModel(container: AppContainer, private val handle: SavedStateHandle) : ViewModel() {
+    private val repository = container.repository
+    private val firstDate = MutableStateFlow<LocalDate?>(null)
+
+    init {
+        viewModelScope.launch { firstDate.value = repository.firstReadingDate() }
+    }
+
+    private fun shownDate(): LocalDate = LocalDate.parse(handle.get<String>(KEY_DATE))
+
+    val ui: StateFlow<DayChartUi> = handle.getStateFlow(KEY_DATE, shownDate().toString())
+        .flatMapLatest { text ->
+            val date = LocalDate.parse(text)
+            combine(
+                repository.activePlan,
+                repository.readings(date.minusDays(DayCharts.HISTORY_DAYS.toLong()), date),
+                repository.doses(date, date),
+                firstDate,
+            ) { plan, readings, doses, first ->
+                val targets = plan?.targets ?: GlucoseTargets.DEFAULT
+                val today = repository.logicalToday(plan)
+                DayChartUi(
+                    loading = false,
+                    date = date,
+                    today = today,
+                    chart = DayCharts.build(date, readings, doses, targets, plan?.let(SlotResolver::dayStartMinute) ?: 0, ZoneId.systemDefault()),
+                    targets = targets,
+                    canGoEarlier = first != null && first.isBefore(date),
+                    canGoLater = date.isBefore(today),
+                )
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DayChartUi(date = shownDate()))
+
+    fun earlier() = move(-1)
+
+    fun later() = move(1)
+
+    /** Moves the chart by [days], but not past today or before the first reading. */
+    private fun move(days: Long) {
+        val next = shownDate().plusDays(days)
+        val first = firstDate.value
+        if (next.isAfter(ui.value.today) || (first != null && next.isBefore(first))) return
+        handle[KEY_DATE] = next.toString()
+    }
+
+    companion object {
+        const val KEY_DATE = "date"
     }
 }

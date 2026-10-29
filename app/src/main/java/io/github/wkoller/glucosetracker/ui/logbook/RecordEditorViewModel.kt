@@ -201,6 +201,7 @@ class RecordEditorViewModel(private val container: AppContainer, handle: SavedSt
         EditorStep.WEIGHT -> weightError(state.weightText, required = state.waistText.isBlank())
         EditorStep.WAIST -> waistError(state.waistText, required = state.weightText.isBlank())
         EditorStep.MEDICINE -> if (state.medicine == null) R.string.editor_choose_one else null
+        EditorStep.TIME -> if (takenAt(state).isAfter(repository.instant())) R.string.editor_time_future else null
         else -> null
     }
 
@@ -228,10 +229,8 @@ class RecordEditorViewModel(private val container: AppContainer, handle: SavedSt
     fun setNote(note: String) = _ui.update { it.copy(note = note) }
     fun setBglText(text: String) = _ui.update { it.copy(bglText = text, meterFlag = null, error = null) }
 
-    fun meterShows(flag: MeterFlag) {
-        _ui.update { it.copy(bglText = "", meterFlag = flag, error = null) }
-        next()
-    }
+    /** The meter showed LO or HI. Like a typed number, it is kept when the user presses Next. */
+    fun meterShows(flag: MeterFlag) = _ui.update { it.copy(bglText = "", meterFlag = flag, error = null) }
 
     fun setMedicine(choice: MedicineChoice) = _ui.update { it.copy(medicine = choice, error = null) }
 

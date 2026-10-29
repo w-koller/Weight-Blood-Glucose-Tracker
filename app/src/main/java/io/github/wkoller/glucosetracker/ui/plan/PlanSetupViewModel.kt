@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.wkoller.glucosetracker.AppContainer
+import io.github.wkoller.glucosetracker.CrashReporter
 import io.github.wkoller.glucosetracker.data.prefs.PinHasher
 import io.github.wkoller.glucosetracker.domain.dosing.SlidingScale
 import io.github.wkoller.glucosetracker.domain.format.Measures
@@ -11,7 +12,10 @@ import io.github.wkoller.glucosetracker.domain.model.Plan
 import io.github.wkoller.glucosetracker.domain.model.Slot
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -57,7 +61,9 @@ data class SetupUi(
     val pin: String = "",
     val pinConfirm: String = "",
     val pinError: PinError? = null,
-    val chosenPin: String? = null,
+    /** The PIN chosen during setup, kept only as its salt and hash until the plan is saved. */
+    val chosenPinSalt: String? = null,
+    val chosenPinHash: String? = null,
     val firstName: String = "",
     val familyName: String = "",
     val supportName: String = "",
@@ -71,12 +77,14 @@ data class SetupUi(
     val voicesOverMobile: Boolean = false,
     val changes: List<String>? = null,
     val saving: Boolean = false,
+    /** True when saving the plan failed, so the review can say so and the user can try again. */
+    val saveFailed: Boolean = false,
     val finished: Boolean = false,
 ) {
     val stepNumber: Int get() = steps.indexOf(step) + 1
 }
 
-class PlanSetupViewModel(private val container: AppContainer, handle: SavedStateHandle) : ViewModel() {
+class PlanSetupViewModel(private val container: AppContainer, private val handle: SavedStateHandle) : ViewModel() {
     private val mode = handle.get<String>("mode")?.let { runCatching { SetupMode.valueOf(it) }.getOrNull() } ?: SetupMode.FIRST
     private var original: Plan? = null
 
@@ -106,8 +114,10 @@ class PlanSetupViewModel(private val container: AppContainer, handle: SavedState
                 else -> SetupStep.entries.filter { it !in FIRST_RUN_ONLY }
             }
             val settings = container.settingsStore.current()
+            // A setup that Android closed in the background carries on where it was.
+            val saved = handle.get<String>(KEY_SAVED)?.let(SetupStateJson::decode)
             _ui.update {
-                it.copy(
+                val fresh = it.copy(
                     loading = false,
                     firstName = settings.firstName,
                     familyName = settings.familyName,
@@ -118,7 +128,9 @@ class PlanSetupViewModel(private val container: AppContainer, handle: SavedState
                     draft = draft,
                     returnToReview = mode == SetupMode.EDIT,
                 )
+                saved?.applyTo(fresh) ?: fresh
             }
+            _ui.map { SavedSetup.of(it) }.distinctUntilChanged().collect { handle[KEY_SAVED] = SetupStateJson.encode(it) }
         }
     }
 
@@ -263,14 +275,15 @@ class PlanSetupViewModel(private val container: AppContainer, handle: SavedState
             !PinHasher.isValidPin(state.pin) -> _ui.update { it.copy(pinError = PinError.INVALID) }
             state.pin != state.pinConfirm -> _ui.update { it.copy(pinError = PinError.MISMATCH) }
             else -> {
-                _ui.update { it.copy(chosenPin = state.pin) }
+                val salt = PinHasher.newSalt()
+                _ui.update { it.copy(chosenPinSalt = salt, chosenPinHash = PinHasher.hash(state.pin, salt)) }
                 next()
             }
         }
     }
 
     fun skipPin() {
-        _ui.update { it.copy(chosenPin = null, pin = "", pinConfirm = "") }
+        _ui.update { it.copy(chosenPinSalt = null, chosenPinHash = null, pin = "", pinConfirm = "") }
         next()
     }
 
@@ -352,34 +365,45 @@ class PlanSetupViewModel(private val container: AppContainer, handle: SavedState
     fun save() {
         val state = _ui.value
         if (state.saving) return
-        _ui.update { it.copy(saving = true, changes = null) }
+        _ui.update { it.copy(saving = true, saveFailed = false, changes = null) }
         viewModelScope.launch {
-            container.repository.savePlanVersion(state.draft.toPlan())
-            val downloadModel = state.mode == SetupMode.FIRST && state.downloadModel == true
-            container.settingsStore.update { settings ->
-                val pin = state.chosenPin
-                val withPin = if (pin != null) {
-                    val salt = PinHasher.newSalt()
-                    settings.copy(pinSalt = salt, pinHash = PinHasher.hash(pin, salt))
-                } else {
-                    settings
-                }
-                val withName = if (state.mode == SetupMode.FIRST) {
-                    withPin.copy(
-                        firstName = state.firstName.trim(),
-                        familyName = state.familyName.trim(),
-                        supportName = state.supportName.trim(),
-                        supportPhone = state.supportPhone.trim(),
-                    )
-                } else {
-                    withPin
-                }
-                withName.copy(setupDone = true, assistantEnabled = withName.assistantEnabled || downloadModel)
+            try {
+                savePlan(state)
+                _ui.update { it.copy(saving = false, finished = true) }
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                CrashReporter.record(container.appContext, error)
+                _ui.update { it.copy(saving = false, saveFailed = true) }
             }
-            container.onPlanChanged()
-            if (downloadModel) container.models.startDownload(state.modelOverMobile)
-            if (state.mode == SetupMode.FIRST && state.downloadVoices == true) container.naturalVoices.start(state.voicesOverMobile)
-            _ui.update { it.copy(saving = false, finished = true) }
         }
+    }
+
+    private suspend fun savePlan(state: SetupUi) {
+        container.repository.savePlanVersion(state.draft.toPlan())
+        val downloadModel = state.mode == SetupMode.FIRST && state.downloadModel == true
+        container.settingsStore.update { settings ->
+            val salt = state.chosenPinSalt
+            val hash = state.chosenPinHash
+            val withPin = if (salt != null && hash != null) settings.copy(pinSalt = salt, pinHash = hash) else settings
+            val withName = if (state.mode == SetupMode.FIRST) {
+                withPin.copy(
+                    firstName = state.firstName.trim(),
+                    familyName = state.familyName.trim(),
+                    supportName = state.supportName.trim(),
+                    supportPhone = state.supportPhone.trim(),
+                )
+            } else {
+                withPin
+            }
+            withName.copy(setupDone = true, assistantEnabled = withName.assistantEnabled || downloadModel)
+        }
+        container.onPlanChanged()
+        if (downloadModel) container.models.startDownload(state.modelOverMobile)
+        if (state.mode == SetupMode.FIRST && state.downloadVoices == true) container.naturalVoices.start(state.voicesOverMobile)
+    }
+
+    private companion object {
+        /** Where the setup in progress is kept, so it survives Android closing the app in the background. */
+        const val KEY_SAVED = "setup"
     }
 }

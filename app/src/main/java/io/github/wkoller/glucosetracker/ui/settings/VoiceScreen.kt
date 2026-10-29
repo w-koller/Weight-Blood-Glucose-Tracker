@@ -25,6 +25,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -112,10 +114,15 @@ fun VoiceScreen(onBack: () -> Unit) {
                 }
                 is NaturalVoiceState.Downloading -> {
                     val fraction = if (state.totalBytes > 0) state.downloadedBytes.toFloat() / state.totalBytes else 0f
+                    // The megabytes change every second, which a screen reader would keep reading out, so it hears each tenth instead.
+                    val spoken = stringResource(R.string.download_progress_spoken, (fraction * 10).toInt() * 10)
                     Text(
                         stringResource(R.string.assistant_downloading, (fraction * 100).toInt(), state.downloadedBytes / MB, state.totalBytes / MB),
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                        modifier = Modifier.clearAndSetSemantics {
+                            contentDescription = spoken
+                            liveRegion = LiveRegionMode.Polite
+                        },
                     )
                     LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth().heightIn(min = 12.dp))
                     Text(stringResource(R.string.voice_natural_downloading_body), style = MaterialTheme.typography.bodyLarge)

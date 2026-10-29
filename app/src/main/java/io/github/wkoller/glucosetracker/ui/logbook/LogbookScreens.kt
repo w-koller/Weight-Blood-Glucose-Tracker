@@ -2,11 +2,10 @@ package io.github.wkoller.glucosetracker.ui.logbook
 
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -16,21 +15,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.wkoller.glucosetracker.R
-import io.github.wkoller.glucosetracker.domain.dosing.DoseAdvisor
 import io.github.wkoller.glucosetracker.domain.format.Measures
 import io.github.wkoller.glucosetracker.domain.model.DoseRecord
 import io.github.wkoller.glucosetracker.domain.model.DoseStatus
 import io.github.wkoller.glucosetracker.domain.model.GlucoseReading
-import io.github.wkoller.glucosetracker.domain.model.GlucoseTargets
 import io.github.wkoller.glucosetracker.domain.model.MeterFlag
-import io.github.wkoller.glucosetracker.domain.records.DayLog
 import io.github.wkoller.glucosetracker.ui.UiFormat
 import io.github.wkoller.glucosetracker.ui.appViewModel
 import io.github.wkoller.glucosetracker.ui.components.BigButton
@@ -39,73 +36,86 @@ import io.github.wkoller.glucosetracker.ui.components.ConfirmDialog
 import io.github.wkoller.glucosetracker.ui.components.OptionRow
 import io.github.wkoller.glucosetracker.ui.components.ScreenScaffold
 import io.github.wkoller.glucosetracker.ui.components.SectionCard
-import io.github.wkoller.glucosetracker.ui.components.StatusChip
 import io.github.wkoller.glucosetracker.ui.components.labelRes
 import io.github.wkoller.glucosetracker.ui.components.label
 import io.github.wkoller.glucosetracker.ui.components.NoticeCard
 import io.github.wkoller.glucosetracker.ui.components.NoticeKind
 import java.time.LocalDate
 
+/**
+ * The logbook, as a calendar or a list. [onChart] opens a day on the full-screen chart. When the chart closes,
+ * [returnDate] is the day it was showing, and the list opens at that day before calling [onReturnHandled].
+ */
 @Composable
-fun LogbookScreen(onBack: () -> Unit, onDay: (LocalDate) -> Unit) {
+fun LogbookScreen(
+    onBack: () -> Unit,
+    onDay: (LocalDate) -> Unit,
+    onChart: (LocalDate) -> Unit = {},
+    returnDate: LocalDate? = null,
+    onReturnHandled: () -> Unit = {},
+) {
     val vm = appViewModel { container, _ -> LogbookViewModel(container) }
     val ui by vm.ui.collectAsStateWithLifecycle()
     val calendar by vm.calendar.collectAsStateWithLifecycle()
     var showList by rememberSaveable { mutableStateOf(false) }
-    val targets = ui.plan?.targets ?: GlucoseTargets.DEFAULT
+    val viewChoice: @Composable () -> Unit = { ViewChoice(showList, onChoose = { showList = it }) }
+    if (showList) {
+        LogbookListScreen(
+            ui,
+            onBack = onBack,
+            viewChoice = viewChoice,
+            onDay = onDay,
+            onChart = onChart,
+            onEarlier = vm::showEarlier,
+            onLoadFrom = vm::showFrom,
+            returnDate = returnDate,
+            onReturnHandled = onReturnHandled,
+        )
+        return
+    }
     ScreenScaffold(title = stringResource(R.string.logbook_title), onBack = onBack) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-            OptionRow(stringResource(R.string.logbook_view_calendar), null, !showList, { showList = false }, modifier = Modifier.weight(1f))
-            OptionRow(stringResource(R.string.logbook_view_list), null, showList, { showList = true }, modifier = Modifier.weight(1f))
+        viewChoice()
+        MonthCalendar(
+            month = calendar.month,
+            statuses = calendar.statuses,
+            today = calendar.today,
+            canGoLater = calendar.canGoLater,
+            onDay = onDay,
+            onEarlier = vm::earlierMonth,
+            onLater = vm::laterMonth,
+        )
+        Text(calendarSummary(calendar.month, calendar.statuses), style = MaterialTheme.typography.titleMedium)
+        SectionCard(stringResource(R.string.calendar_legend_title)) { CalendarLegend() }
+    }
+}
+
+/** Calendar or List, the two ways to look through the logbook. They sit side by side when both words fit, and one above the other when they do not. */
+@Composable
+private fun ViewChoice(showList: Boolean, onChoose: (Boolean) -> Unit) {
+    val calendar = stringResource(R.string.logbook_view_calendar)
+    val list = stringResource(R.string.logbook_view_list)
+    val measurer = rememberTextMeasurer()
+    val style = MaterialTheme.typography.titleMedium
+    val density = LocalDensity.current
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val longest = with(density) { listOf(calendar, list).maxOf { measurer.measure(it, style).size.width }.toDp() }
+        val sideBySide = (maxWidth - CHOICE_GAP) / 2 >= longest + OPTION_CHROME
+        val choices: @Composable (Modifier) -> Unit = { modifier ->
+            OptionRow(calendar, null, !showList, { onChoose(false) }, modifier = modifier)
+            OptionRow(list, null, showList, { onChoose(true) }, modifier = modifier)
         }
-        if (!showList) {
-            MonthCalendar(
-                month = calendar.month,
-                statuses = calendar.statuses,
-                today = calendar.today,
-                canGoLater = calendar.canGoLater,
-                onDay = onDay,
-                onEarlier = vm::earlierMonth,
-                onLater = vm::laterMonth,
-            )
-            Text(calendarSummary(calendar.month, calendar.statuses), style = MaterialTheme.typography.titleMedium)
-            SectionCard(stringResource(R.string.calendar_legend_title)) { CalendarLegend() }
-            return@ScreenScaffold
-        }
-        if (!ui.loading && ui.days.isEmpty()) {
-            Text(stringResource(R.string.logbook_empty), style = MaterialTheme.typography.titleMedium)
-        }
-        ui.days.forEach { day ->
-            SectionCard(UiFormat.dayLong(day.date)) {
-                DaySummary(day, targets)
-                BigButton(stringResource(R.string.logbook_open_day), onClick = { onDay(day.date) }, icon = R.drawable.ic_edit, style = ButtonStyle.SECONDARY)
-            }
-        }
-        if (ui.hasEarlier) {
-            BigButton(stringResource(R.string.logbook_show_earlier), onClick = vm::showEarlier, icon = R.drawable.ic_history, style = ButtonStyle.SECONDARY)
+        if (sideBySide) {
+            Row(horizontalArrangement = Arrangement.spacedBy(CHOICE_GAP), modifier = Modifier.fillMaxWidth()) { choices(Modifier.weight(1f)) }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(CHOICE_GAP), modifier = Modifier.fillMaxWidth()) { choices(Modifier) }
         }
     }
 }
 
-/** A day's records in the order of the day, with each reading's status. */
-@Composable
-private fun DaySummary(day: DayLog, targets: GlucoseTargets) {
-    val context = LocalContext.current
-    day.slots.forEachIndexed { index, entry ->
-        if (index > 0) HorizontalDivider()
-        Text(entry.slot.label(), style = MaterialTheme.typography.titleMedium)
-        entry.readings.forEach { reading ->
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text(readingText(context, reading), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                Spacer(Modifier.width(8.dp))
-                StatusChip(DoseAdvisor.statusOf(reading.tenths, reading.meterFlag, targets))
-            }
-        }
-        entry.doses.forEach { dose -> Text(doseText(context, dose), style = MaterialTheme.typography.bodyLarge) }
-    }
-    day.weightGrams?.let { Text(stringResource(R.string.logbook_weight, Measures.formatKg(it)), style = MaterialTheme.typography.bodyLarge) }
-    day.waistMm?.let { Text(stringResource(R.string.logbook_waist, Measures.formatCm(it)), style = MaterialTheme.typography.bodyLarge) }
-}
+private val CHOICE_GAP = 12.dp
+
+/** The padding, radio button and gap around the words of an [OptionRow]. */
+private val OPTION_CHROME = 72.dp
 
 fun readingText(context: Context, reading: GlucoseReading): String {
     val value = when (reading.meterFlag) {

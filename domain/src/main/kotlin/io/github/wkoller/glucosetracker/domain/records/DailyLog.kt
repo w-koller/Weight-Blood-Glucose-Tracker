@@ -9,6 +9,7 @@ import io.github.wkoller.glucosetracker.domain.model.Plan
 import io.github.wkoller.glucosetracker.domain.model.Slot
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 
 /** Everything recorded for one time of day on one day. */
 data class SlotEntry(val slot: Slot, val readings: List<GlucoseReading>, val doses: List<DoseRecord>) {
@@ -51,16 +52,27 @@ data class Adherence(val medicineKey: String, val medicineName: String, val sche
 object AdherenceCalculator {
 
     /**
-     * Counts scheduled doses from [from] to [now]'s day, leaving out doses later today that are not yet due.
-     * A dose counts as due from its slot's planned time.
+     * Counts the scheduled doses of each of [plan]'s medicines from [from] to [today], leaving out doses later today
+     * that are not yet due. Each day is judged against the version of the plan in force that day, taken from
+     * [history], so days before the plan started, or before a medicine was added, are not counted. A dose counts as
+     * due from its slot's planned time.
      */
-    fun calculate(plan: Plan, from: LocalDate, now: LocalDateTime, today: LocalDate, doses: List<DoseRecord>): List<Adherence> =
+    fun calculate(
+        plan: Plan,
+        history: List<Plan>,
+        zone: ZoneId,
+        from: LocalDate,
+        now: LocalDateTime,
+        today: LocalDate,
+        doses: List<DoseRecord>,
+    ): List<Adherence> =
         plan.medicines.map { medicine ->
             var scheduled = 0
             var date = from
             while (!date.isAfter(today)) {
-                medicine.doses.keys.forEach { slot ->
-                    val time = plan.schedule(slot)?.time
+                val dayPlan = PlanTimeline.planOn(date, history, zone)
+                dayPlan?.medicines?.firstOrNull { it.key == medicine.key }?.doses?.keys?.forEach { slot ->
+                    val time = dayPlan.schedule(slot)?.time
                     val due = date.isBefore(today) || time == null || !now.toLocalTime().isBefore(time)
                     if (due) scheduled++
                 }

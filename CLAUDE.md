@@ -22,15 +22,29 @@ each step fits in one picture; `SmallScreenTest` checks number entry on a 360×6
 text size and turned sideways, and saves `small_*.png`. Robolectric cannot run `PdfDocument`, so
 report pages are drawn through `PageSink`.
 
+Back uses the classic back event: `android:enableOnBackInvokedCallback="false"` in the manifest turns off the
+predictive-back preview that shrinks the window. Android calls this opt-out temporary, so check that it still
+applies before raising `targetSdk` above 36.
+
 CI (`.github/workflows/android.yml`) runs the same tasks and uploads the debug APK. It also builds a
 signed release APK when the `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and `KEY_PASSWORD`
-secrets are set. The release keystore lives at `~/.android-keys/` and must never be committed.
+secrets are set. The release keystore lives at `~/.android-keys/` and must never be committed. A `v*` tag
+that matches `versionName` publishes the signed APK and its checksum as a GitHub Release, with the notes from
+that version's section of `CHANGELOG.md`. A version with a suffix, such as `1.0.0-rc.1`, is published as a
+pre-release. CI also fails when `strings.xml` does not match `tools/strings_*.py`.
+
+About › Licences reads `assets/licences/`. The build copies the licence and notice files out of the LiteRT-LM
+and Commons Compress archives into it (`collect<Variant>Licences`), and `app/src/main/assets/licences/` holds
+the ONNX Runtime licence, which no archive carries. Please add a library to the list in `LicencesScreens.kt`
+when it is added to the app.
 
 ## Layout
 
 - `domain/`: all dose and schedule rules, with no Android code. `SlidingScale`, `DoseAdvisor`,
   `OverrideCheck`, `SlotResolver`, `NextStepEngine`, `ProgressCalculator`, `GlucoseStats`, `ProgressModel`, `LowPatterns`,
-  `DailyLog`, `AssistantGuard` and `PromptBuilder`. Every rule change needs a test here.
+  `DailyLog`, `Logbook`, `AssistantGuard` and `PromptBuilder`. Every rule change needs a test here.
+  `Logbook` turns each day into the lines of the logbook list and the points of the chart above it, and
+  `DayCharts` places one day's readings, and those of the 30 days before, by time of day for the full-screen chart.
   `ProgressModel` is the one source for the Progress screen's charts, what TalkBack reads for each day,
   the PDF report's summary and chart, the readout, and the facts given to the assistant.
 - `app/data`: Room (versioned plans and records) and DataStore settings.
@@ -70,8 +84,10 @@ Copy follows the product-UI rules in `/home/william/informed-trader/VOICE.md`:
 
 Large, always-labelled buttons (`BigButton`, at least 72 dp tall). One question per step
 (`StepScaffold`). Number entry uses `NumberEntryScaffold`, which keeps the value, keypad and main
-button on screen like a keyboard. Extra buttons go in `StepScaffold`'s `moreActions`, which move into
-the content on short screens. Slot names come from `Slot.label()` and `Slot.phrase()`, which follow
+button on screen like a keyboard. Its scrolling header holds words only: buttons go in `wordKeys`,
+beside the digits (LO and HI), or in `headerAction`, beside Back (the time of day), so the keypad never
+hides them. Extra buttons go in `StepScaffold`'s `moreActions`, which move into the content on short
+screens. Slot names come from `Slot.label()` and `Slot.phrase()`, which follow
 the user's choice of meal names or times of day. No gesture-only or long-press-only actions and no
 timeouts. Status is shown with an icon and a word, not colour alone. Respect `LocalUiPrefs` (icons,
 helper text, simple mode, reduce motion, read aloud, slot names) in new components.

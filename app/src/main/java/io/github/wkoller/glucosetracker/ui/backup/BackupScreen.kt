@@ -19,6 +19,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.wkoller.glucosetracker.CrashReporter
 import io.github.wkoller.glucosetracker.R
+import io.github.wkoller.glucosetracker.backup.BackupSharedReceiver
 import io.github.wkoller.glucosetracker.data.prefs.Settings
 import io.github.wkoller.glucosetracker.ui.UiFormat
 import io.github.wkoller.glucosetracker.ui.appContainer
@@ -129,7 +130,8 @@ fun BackupScreen(onBack: () -> Unit) {
                                     .setType("application/json")
                                     .putExtra(Intent.EXTRA_STREAM, uri)
                                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                context.startActivity(Intent.createChooser(send, shareTitle))
+                                // The backup counts as saved once the user chooses where to send it.
+                                context.startActivity(Intent.createChooser(send, shareTitle, BackupSharedReceiver.chooserCallback(context)))
                             } catch (throwable: Exception) {
                                 failed(throwable)
                             } finally {

@@ -4,9 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -42,7 +40,10 @@ import io.github.wkoller.glucosetracker.ui.components.SectionCard
 import io.github.wkoller.glucosetracker.ui.components.StepScaffold
 import io.github.wkoller.glucosetracker.ui.components.TimeStepper
 import io.github.wkoller.glucosetracker.ui.components.label
+import io.github.wkoller.glucosetracker.ui.components.meterKeys
+import io.github.wkoller.glucosetracker.ui.components.meterShowsRes
 import io.github.wkoller.glucosetracker.ui.components.phrase
+import io.github.wkoller.glucosetracker.ui.components.wordRes
 
 /** Changes a logbook record, or adds one the user forgot, one question per screen. */
 @Composable
@@ -77,18 +78,17 @@ fun RecordEditorScreen(onClose: () -> Unit) {
             title = stringResource(R.string.checkin_bgl_title, ui.slot.phrase()),
             onBack = onBack,
             value = ui.bglText,
-            display = ui.bglText.ifEmpty { ui.meterFlag?.name.orEmpty() },
-            unit = stringResource(R.string.unit_mmol),
+            display = ui.meterFlag?.let { stringResource(it.wordRes()) } ?: ui.bglText,
+            displayDescription = ui.meterFlag?.let { stringResource(it.meterShowsRes()) },
+            unit = if (ui.meterFlag == null) stringResource(R.string.unit_mmol) else "",
             onValueChange = vm::setBglText,
             error = ui.error?.let { stringResource(it) },
             maxDecimals = 1,
             maxIntegerDigits = 2,
+            wordKeys = meterKeys(ui.meterFlag, vm::meterShows),
             action = next,
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                BigButton(stringResource(R.string.checkin_meter_lo), onClick = { vm.meterShows(MeterFlag.LO) }, style = ButtonStyle.SECONDARY, modifier = Modifier.weight(1f))
-                BigButton(stringResource(R.string.checkin_meter_hi), onClick = { vm.meterShows(MeterFlag.HI) }, style = ButtonStyle.SECONDARY, modifier = Modifier.weight(1f))
-            }
+            Text(stringResource(R.string.checkin_bgl_body), style = MaterialTheme.typography.bodyLarge)
         }
         EditorStep.AMOUNT -> NumberEntryScaffold(
             title = stringResource(R.string.checkin_amount_title, ui.medicine?.name.orEmpty()),

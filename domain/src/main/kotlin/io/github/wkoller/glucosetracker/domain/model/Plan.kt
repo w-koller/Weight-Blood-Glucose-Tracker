@@ -50,7 +50,16 @@ data class GlucoseTargets(
     val highTenths: Int,
     val hypoTenths: Int,
 ) {
+    /** See [hypoAtOrBelowRange] in the companion. */
+    val hypoAtOrBelowRange: Boolean get() = hypoAtOrBelowRange(lowTenths, hypoTenths)
+
     companion object {
+        /**
+         * The low level must not be above the bottom of the target range. If it were, a reading could be called
+         * low while it is in range, and the low-reading advice would be shown for a normal reading.
+         */
+        fun hypoAtOrBelowRange(lowTenths: Int, hypoTenths: Int): Boolean = hypoTenths <= lowTenths
+
         val DEFAULT = GlucoseTargets(lowTenths = 40, highTenths = 100, hypoTenths = 40)
     }
 }

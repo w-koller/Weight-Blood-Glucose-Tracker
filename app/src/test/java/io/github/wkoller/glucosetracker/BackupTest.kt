@@ -111,6 +111,28 @@ class BackupTest {
     }
 
     @Test
+    fun `a damaged backup is refused before anything is replaced`() {
+        seed()
+        val text = String(runBlocking { container.backup.create(null) })
+        val before = runBlocking { dao.everything() }
+
+        // A time of day this version does not know, as an older app would find in a file from a newer one.
+        val unknownSlot = text.replaceFirst("\"slot\": \"BREAKFAST\"", "\"slot\": \"BRUNCH\"")
+        assertEquals(BackupReadResult.Damaged, BackupFile.read(unknownSlot.toByteArray(), null))
+
+        // A plan whose sliding scale has no rows cannot give a dose.
+        val noScale = text.replace(Regex("\"bands\": \\[[^\\]]*]"), "\"bands\": []")
+        assertEquals(BackupReadResult.Damaged, BackupFile.read(noScale.toByteArray(), null))
+
+        // A file that asks for an impossible amount of work to open it is refused at once.
+        val locked = String(runBlocking { container.backup.create("secret pass") })
+        val slow = locked.replace("\"iterations\": 210000", "\"iterations\": 2000000000")
+        assertEquals(BackupReadResult.Damaged, BackupFile.read(slow.toByteArray(), "secret pass"))
+
+        assertEquals(before, runBlocking { dao.everything() })
+    }
+
+    @Test
     fun `a restore that fails leaves the records on this phone`() {
         seed()
         val before = runBlocking { dao.everything() }

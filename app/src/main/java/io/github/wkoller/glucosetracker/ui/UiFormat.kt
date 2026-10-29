@@ -5,6 +5,7 @@ import android.text.format.DateFormat
 import io.github.wkoller.glucosetracker.R
 import io.github.wkoller.glucosetracker.domain.format.Measures
 import io.github.wkoller.glucosetracker.domain.model.MedicineKind
+import io.github.wkoller.glucosetracker.domain.model.MeterFlag
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -22,6 +23,9 @@ object UiFormat {
     /** "Friday 9 October 2026" */
     fun dayLongYear(date: LocalDate): String = date.format(DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", locale))
 
+    /** "Fri 9", for the days along the top of the logbook chart. */
+    fun weekdayShort(date: LocalDate): String = date.format(DateTimeFormatter.ofPattern("EEE d", locale))
+
     /** "Fri 9 Oct" */
     fun dayShort(date: LocalDate): String = date.format(DateTimeFormatter.ofPattern("EEE d MMM", locale))
 
@@ -36,6 +40,12 @@ object UiFormat {
 
     fun time(context: Context, instant: Instant): String = time(context, instant.atZone(ZoneId.systemDefault()).toLocalTime())
 
+    /** "6 am" or "06:00", for the times along a chart, following the phone's 12- or 24-hour setting. */
+    fun hour(context: Context, time: LocalTime): String {
+        val pattern = if (DateFormat.is24HourFormat(context)) "HH:mm" else "h a"
+        return time.format(DateTimeFormatter.ofPattern(pattern, locale)).lowercase(locale)
+    }
+
     /** "4 units", "1 tablet", "0.5 tablets" or "2 puffs" for a medicine amount. */
     fun dose(context: Context, amount: Double, kind: MedicineKind, unit: String): String {
         val number = Measures.formatAmount(amount)
@@ -48,6 +58,13 @@ object UiFormat {
     }
 
     fun units(context: Context, amount: Double): String = dose(context, amount, MedicineKind.INSULIN, "")
+
+    /** "13.7 mmol/L", or LO or HI with what it means, when the meter could not measure the level. */
+    fun reading(context: Context, tenths: Int, meterFlag: MeterFlag?): String = when (meterFlag) {
+        MeterFlag.LO -> context.getString(R.string.checkin_reading_lo)
+        MeterFlag.HI -> context.getString(R.string.checkin_reading_hi)
+        null -> context.getString(R.string.bgl_amount, Measures.formatTenths(tenths))
+    }
 
     /** "once", "2 times" */
     fun times(context: Context, count: Int): String = context.resources.getQuantityString(R.plurals.times_plural, count, count)

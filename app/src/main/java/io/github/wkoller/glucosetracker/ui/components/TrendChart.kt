@@ -182,20 +182,21 @@ fun TrendChart(
     }
 }
 
-private fun DrawScope.drawPoint(center: Offset, shape: PointShape, color: Color, radius: Float) {
+/** Draws one point in its [shape], with a thin [haloColor] edge so it stands out from lines and bands behind it. */
+internal fun DrawScope.drawPoint(center: Offset, shape: PointShape, color: Color, radius: Float, haloColor: Color = Color.White) {
     val halo = 1.dp.toPx()
     when (shape) {
         PointShape.CIRCLE -> {
-            drawCircle(Color.White, radius = radius + halo, center = center)
+            drawCircle(haloColor, radius = radius + halo, center = center)
             drawCircle(color, radius = radius, center = center)
         }
         PointShape.SQUARE -> {
             val side = radius * 0.9f
-            drawRect(Color.White, topLeft = center - Offset(side + halo, side + halo), size = Size(2 * (side + halo), 2 * (side + halo)))
+            drawRect(haloColor, topLeft = center - Offset(side + halo, side + halo), size = Size(2 * (side + halo), 2 * (side + halo)))
             drawRect(color, topLeft = center - Offset(side, side), size = Size(2 * side, 2 * side))
         }
         PointShape.TRIANGLE -> {
-            drawPath(downTriangle(center, radius * 1.3f + halo * 2), Color.White)
+            drawPath(downTriangle(center, radius * 1.3f + halo * 2), haloColor)
             drawPath(downTriangle(center, radius * 1.3f), color)
         }
     }

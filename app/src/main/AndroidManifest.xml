@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- Check reminders and the 15-minute recheck after a low reading must arrive on time, even while the phone is idle.
+         Android 13 and later grant USE_EXACT_ALARM when the app is installed; Android 12 grants SCHEDULE_EXACT_ALARM. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Android's download manager requires this to download the assistant model. Records are never sent anywhere. -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -16,10 +20,13 @@
         </intent>
     </queries>
 
+    <!-- Back goes straight to the previous screen, without the predictive-back preview that shrinks the window. -->
     <application
         android:name=".TrackerApp"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
+        android:enableOnBackInvokedCallback="false"
+        tools:targetApi="33"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
@@ -44,6 +51,10 @@
 
         <receiver
             android:name=".reminders.ReminderReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".backup.BackupSharedReceiver"
             android:exported="false" />
 
         <receiver

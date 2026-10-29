@@ -2,6 +2,7 @@ import java.net.URI
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
+import javax.inject.Inject
 
 plugins {
     alias(libs.plugins.android.application)
@@ -43,6 +44,34 @@ abstract class VerifiedDownloadTask : DefaultTask() {
     }
 }
 
+/**
+ * Copies the licence and notice files that libraries ship inside their archives into the app's assets, so
+ * About › Licences can show them. The Apache License asks that these travel with the app.
+ */
+abstract class CollectLicencesTask : DefaultTask() {
+    @get:InputFiles abstract val archives: ConfigurableFileCollection
+    @get:InputFile abstract val appLicence: RegularFileProperty
+    @get:OutputDirectory abstract val output: DirectoryProperty
+    @get:Inject abstract val archiveOperations: ArchiveOperations
+
+    @TaskAction
+    fun collect() {
+        val folder = output.get().dir("licences").asFile
+        folder.deleteRecursively()
+        folder.mkdirs()
+        appLicence.get().asFile.copyTo(File(folder, "weight-glucose-tracker-LICENSE.txt"))
+        val wanted = setOf("LICENSE", "LICENSE.txt", "NOTICE", "NOTICE.txt", "THIRD_PARTY_NOTICE.txt")
+        archives.files.forEach { archive ->
+            // litertlm-android-0.18.0.aar is named litertlm-android.
+            val library = archive.nameWithoutExtension.replace(Regex("""-\d[^-]*$"""), "")
+            archiveOperations.zipTree(archive).visit {
+                val atTop = relativePath.segments.size == 1 || relativePath.pathString.startsWith("META-INF/")
+                if (!isDirectory && atTop && name in wanted) copyTo(File(folder, "$library-${name.removeSuffix(".txt")}.txt"))
+            }
+        }
+    }
+}
+
 // sherpa-onnx runs the optional natural voices. It is published as an AAR on GitHub, not on Maven.
 val sherpaOnnxVersion = "1.13.8"
 val sherpaOnnxAar = layout.buildDirectory.file("third-party/sherpa-onnx-static-link-onnxruntime-$sherpaOnnxVersion.aar")
@@ -63,11 +92,9 @@ android {
         applicationId = "io.github.wkoller.glucosetracker"
         minSdk = 31
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 5
+        versionName = "1.0.0-rc.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // Phones are arm64; x86_64 is kept for emulators in debug builds.
-        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
 
     signingConfigs {
@@ -82,17 +109,17 @@ android {
     }
 
     buildTypes {
+        // ABI filters are set per build type: a build type's filters are added to defaultConfig's, not put in their place.
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            // Phones are arm64; x86_64 is kept for emulators in debug builds.
+            ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
         }
         release {
             isMinifyEnabled = false
             // Phones with 8 GB or more are arm64; leaving out the emulator libraries keeps the download small.
-            ndk {
-                abiFilters.clear()
-                abiFilters += listOf("arm64-v8a")
-            }
+            ndk { abiFilters += listOf("arm64-v8a") }
             if (releaseKeystore != null) {
                 signingConfig = signingConfigs.getByName("release")
             }
@@ -124,6 +151,22 @@ kotlin {
 
 room {
     schemaDirectory("$projectDir/schemas")
+}
+
+// The archives whose licence and notice files are shown in About › Licences.
+val licenceArchives: Configuration = configurations.detachedConfiguration(
+    dependencies.create("com.google.ai.edge.litertlm:litertlm-android:${libs.versions.litertlm.get()}@aar"),
+    dependencies.create("org.apache.commons:commons-compress:${libs.versions.commonsCompress.get()}"),
+).apply { isTransitive = false }
+
+androidComponents {
+    onVariants { variant ->
+        val collectLicences = tasks.register<CollectLicencesTask>("collect${variant.name.replaceFirstChar { it.uppercase() }}Licences") {
+            archives.from(licenceArchives)
+            appLicence.set(rootProject.layout.projectDirectory.file("LICENSE"))
+        }
+        variant.sources.assets?.addGeneratedSourceDirectory(collectLicences, CollectLicencesTask::output)
+    }
 }
 
 dependencies {

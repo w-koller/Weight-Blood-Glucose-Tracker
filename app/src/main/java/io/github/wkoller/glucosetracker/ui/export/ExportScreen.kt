@@ -14,6 +14,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import io.github.wkoller.glucosetracker.AppContainer
+import io.github.wkoller.glucosetracker.CrashReporter
 import io.github.wkoller.glucosetracker.R
 import io.github.wkoller.glucosetracker.domain.records.DailyLog
 import io.github.wkoller.glucosetracker.export.CsvExporter
@@ -54,7 +55,9 @@ class ExportViewModel(private val container: AppContainer) : ViewModel() {
         if (_ui.value.busy) return
         _ui.update { it.copy(busy = true, error = false) }
         viewModelScope.launch {
-            val uri = runCatching { withContext(Dispatchers.IO) { writeFile(format) } }.getOrNull()
+            val uri = runCatching { withContext(Dispatchers.IO) { writeFile(format) } }
+                .onFailure { CrashReporter.record(container.appContext, it) }
+                .getOrNull()
             _ui.update { it.copy(busy = false, share = uri?.let { u -> u to format }, error = uri == null) }
         }
     }

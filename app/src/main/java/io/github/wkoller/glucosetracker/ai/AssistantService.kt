@@ -57,6 +57,12 @@ sealed interface AssistantReply {
     /** The question mentioned an emergency, so the app answers it instead of the model. */
     data object Urgent : AssistantReply
 
+    /** The question described signs of a low level, so the app says what to do instead of the model. */
+    data object Hypo : AssistantReply
+
+    /** The question mentioned suicide or self-harm, so the app gives numbers to call instead of the model. */
+    data object Crisis : AssistantReply
+
     data object Failed : AssistantReply
 }
 
@@ -69,6 +75,8 @@ class AssistantService(
     private val repository: TrackerRepository,
     private val models: ModelManager,
     private val settings: io.github.wkoller.glucosetracker.data.prefs.SettingsStore,
+    /** Keeps a failure in the problem report, so a model that will not load on someone's phone can be looked into. */
+    private val onError: (Throwable) -> Unit = {},
 ) {
     @Volatile
     private var current: Conversation? = null
@@ -107,6 +115,8 @@ class AssistantService(
         return when (AssistantGuard.classify(question, names)) {
             QuestionKind.DOSE -> flowOfReply(AssistantReply.DoseQuestion)
             QuestionKind.URGENT -> flowOfReply(AssistantReply.Urgent)
+            QuestionKind.HYPO -> flowOfReply(AssistantReply.Hypo)
+            QuestionKind.CRISIS -> flowOfReply(AssistantReply.Crisis)
             QuestionKind.GENERAL -> generate(context, question, history)
         }
     }
@@ -153,6 +163,7 @@ class AssistantService(
             }
         } catch (error: Throwable) {
             if (error is kotlinx.coroutines.CancellationException) throw error
+            onError(error)
             send(AssistantReply.Failed)
         }
     }.flowOn(Dispatchers.Default)

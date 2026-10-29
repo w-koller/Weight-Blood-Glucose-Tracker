@@ -24,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -39,6 +41,9 @@ import io.github.wkoller.glucosetracker.ui.appViewModel
 import io.github.wkoller.glucosetracker.ui.components.BigButton
 import io.github.wkoller.glucosetracker.ui.components.ButtonStyle
 import io.github.wkoller.glucosetracker.ui.components.ConfirmDialog
+import io.github.wkoller.glucosetracker.ui.components.DialButton
+import io.github.wkoller.glucosetracker.ui.components.EMERGENCY_NUMBER
+import io.github.wkoller.glucosetracker.ui.components.LIFELINE_NUMBER
 import io.github.wkoller.glucosetracker.ui.components.LabeledField
 import io.github.wkoller.glucosetracker.ui.components.NoticeCard
 import io.github.wkoller.glucosetracker.ui.components.NoticeKind
@@ -144,7 +149,17 @@ private fun AnswerCard(exchange: Exchange, onCheckIn: () -> Unit, onStop: () -> 
         AnswerKind.DOSE -> NoticeCard(NoticeKind.INFO, stringResource(R.string.assistant_dose_title), stringResource(R.string.assistant_dose_answer)) {
             BigButton(stringResource(R.string.home_check_bgl), onClick = onCheckIn, icon = R.drawable.ic_water_drop)
         }
-        AnswerKind.URGENT -> NoticeCard(NoticeKind.DANGER, stringResource(R.string.assistant_urgent_title), stringResource(R.string.assistant_urgent_answer))
+        AnswerKind.URGENT -> NoticeCard(NoticeKind.DANGER, stringResource(R.string.assistant_urgent_title), stringResource(R.string.assistant_urgent_answer)) {
+            DialButton(stringResource(R.string.low_call_emergency), EMERGENCY_NUMBER, style = ButtonStyle.DANGER)
+        }
+        AnswerKind.HYPO -> NoticeCard(NoticeKind.DANGER, stringResource(R.string.assistant_hypo_title), stringResource(R.string.assistant_hypo_answer)) {
+            BigButton(stringResource(R.string.home_check_bgl), onClick = onCheckIn, icon = R.drawable.ic_water_drop)
+            DialButton(stringResource(R.string.low_call_emergency), EMERGENCY_NUMBER, style = ButtonStyle.DANGER)
+        }
+        AnswerKind.CRISIS -> NoticeCard(NoticeKind.DANGER, stringResource(R.string.assistant_crisis_title), stringResource(R.string.assistant_crisis_answer)) {
+            DialButton(stringResource(R.string.low_call_emergency), EMERGENCY_NUMBER, style = ButtonStyle.DANGER)
+            DialButton(stringResource(R.string.assistant_call_lifeline), LIFELINE_NUMBER)
+        }
         AnswerKind.FAILED -> NoticeCard(NoticeKind.WARNING, stringResource(R.string.assistant_failed_title), stringResource(R.string.assistant_failed))
         AnswerKind.MODEL -> {
             if (exchange.loadingModel) {
@@ -154,7 +169,12 @@ private fun AnswerCard(exchange: Exchange, onCheckIn: () -> Unit, onStop: () -> 
                 }
             }
             if (exchange.answer.isNotBlank()) {
-                Text(exchange.answer, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                Text(
+                    exchange.answer,
+                    style = MaterialTheme.typography.bodyLarge,
+                    // While it is being written the answer changes many times a second, so a screen reader reads it once, when it is complete.
+                    modifier = if (exchange.streaming) Modifier.clearAndSetSemantics { } else Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
             }
             if (exchange.streaming) {
                 BigButton(stringResource(R.string.assistant_stop), onClick = onStop, icon = R.drawable.ic_stop_circle, style = ButtonStyle.SECONDARY)
@@ -218,10 +238,15 @@ fun AssistantSettingsScreen(onBack: () -> Unit) {
             }
             is ModelState.Downloading -> {
                 val fraction = if (current.totalBytes > 0) current.downloadedBytes.toFloat() / current.totalBytes else 0f
+                // The megabytes change every second, which a screen reader would keep reading out, so it hears each tenth instead.
+                val spoken = stringResource(R.string.download_progress_spoken, (fraction * 10).toInt() * 10)
                 Text(
                     stringResource(R.string.assistant_downloading, (fraction * 100).toInt(), current.downloadedBytes / MB, current.totalBytes / MB),
                     style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    modifier = Modifier.clearAndSetSemantics {
+                        contentDescription = spoken
+                        liveRegion = LiveRegionMode.Polite
+                    },
                 )
                 LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth().heightIn(min = 12.dp))
                 Text(stringResource(R.string.assistant_downloading_body), style = MaterialTheme.typography.bodyLarge)

@@ -110,8 +110,8 @@ fun ProgressContent(ui: ProgressUi, onBack: () -> Unit, onAsk: (Int) -> Unit, on
                 summary.inTargetPercent?.let { FactRow(stringResource(R.string.progress_in_target), stringResource(R.string.progress_in_target_value, it, summary.inTargetCount, summary.count)) }
                 FactRow(stringResource(R.string.progress_lows), summary.lowCount.toString())
                 FactRow(stringResource(R.string.progress_above), summary.aboveTargetCount.toString())
-                summary.lowest?.let { FactRow(stringResource(R.string.progress_lowest), stringResource(R.string.progress_reading_on, Measures.formatTenths(it.tenths), UiFormat.dayLong(it.date))) }
-                summary.highest?.let { FactRow(stringResource(R.string.progress_highest), stringResource(R.string.progress_reading_on, Measures.formatTenths(it.tenths), UiFormat.dayLong(it.date))) }
+                summary.lowest?.let { FactRow(stringResource(R.string.progress_lowest), stringResource(R.string.progress_reading_on, UiFormat.reading(context, it.tenths, it.meterFlag), UiFormat.dayLong(it.date))) }
+                summary.highest?.let { FactRow(stringResource(R.string.progress_highest), stringResource(R.string.progress_reading_on, UiFormat.reading(context, it.tenths, it.meterFlag), UiFormat.dayLong(it.date))) }
                 Text(stringResource(R.string.progress_by_time), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
                 summary.perSlot.forEach { slot ->
                     FactRow(
@@ -126,10 +126,15 @@ fun ProgressContent(ui: ProgressUi, onBack: () -> Unit, onAsk: (Int) -> Unit, on
             SectionCard(stringResource(R.string.progress_doses_title), icon = R.drawable.ic_medication) {
                 model.doses.forEach { dose ->
                     val total = UiFormat.dose(context, dose.totalGiven, dose.medicineKind, dose.unit)
-                    val text = if (dose.kind == DoseKind.CORRECTION) {
-                        stringResource(R.string.progress_correction_summary, UiFormat.times(context, dose.givenCount), total, UiFormat.times(context, dose.skippedCount))
-                    } else {
-                        stringResource(R.string.progress_fixed_summary, UiFormat.times(context, dose.givenCount), UiFormat.times(context, dose.skippedCount))
+                    val given = UiFormat.times(context, dose.givenCount)
+                    val skipped = UiFormat.times(context, dose.skippedCount)
+                    // A count of nought is left out rather than read as "not given 0 times".
+                    val text = when {
+                        dose.givenCount == 0 -> stringResource(R.string.progress_not_given_only, skipped)
+                        dose.skippedCount == 0 && dose.kind == DoseKind.CORRECTION -> stringResource(R.string.progress_correction_given_only, given, total)
+                        dose.skippedCount == 0 -> stringResource(R.string.progress_fixed_given_only, given)
+                        dose.kind == DoseKind.CORRECTION -> stringResource(R.string.progress_correction_summary, given, total, skipped)
+                        else -> stringResource(R.string.progress_fixed_summary, given, skipped)
                     }
                     FactRow(dose.medicineName, text)
                 }

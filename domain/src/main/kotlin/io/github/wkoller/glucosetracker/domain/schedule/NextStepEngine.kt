@@ -93,9 +93,8 @@ object NextStepEngine {
         val slot = window.slot
         val schedule = window.schedule
         if (schedule.checkBgl && day.readings.none { it.slot == slot }) return NextStep.CheckIn(slot, schedule.time)
-        if (!medicinesDone(plan, slot, day)) {
-            return if (schedule.checkBgl) NextStep.CheckIn(slot, schedule.time) else NextStep.Medicines(slot, schedule.time)
-        }
+        // Once the reading is in, only the medicines are left, so they are asked for without a second finger-prick.
+        if (!medicinesDone(plan, slot, day)) return NextStep.Medicines(slot, schedule.time)
         return null
     }
 

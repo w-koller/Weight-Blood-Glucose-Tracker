@@ -5,6 +5,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -22,13 +27,16 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.wkoller.glucosetracker.data.prefs.PinHasher
 import io.github.wkoller.glucosetracker.data.prefs.Settings
 import io.github.wkoller.glucosetracker.data.prefs.TextSize
+import io.github.wkoller.glucosetracker.ui.UiFormat
 import io.github.wkoller.glucosetracker.ui.checkin.CheckInScreen
+import io.github.wkoller.glucosetracker.ui.logbook.LogbookScreen
 import io.github.wkoller.glucosetracker.ui.measure.MeasureScreen
 import io.github.wkoller.glucosetracker.ui.plan.PlanSetupScreen
 import io.github.wkoller.glucosetracker.ui.plan.UnlockScreen
 import io.github.wkoller.glucosetracker.ui.theme.TrackerTheme
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -93,6 +101,13 @@ class SmallScreenTest {
         compose.onNodeWithText(button).assertIsDisplayed()
     }
 
+    /** LO, HI and the time of day sit beside the keypad and beside Back, so none of them is hidden under the keypad. */
+    private fun assertGlucoseChoicesOnScreen() {
+        compose.onNodeWithTag("key_lo").assertIsDisplayed().assertHeightIsAtLeast(MIN_KEY)
+        compose.onNodeWithTag("key_hi").assertIsDisplayed().assertHeightIsAtLeast(MIN_KEY)
+        compose.onNodeWithTag("time_of_day").assertIsDisplayed()
+    }
+
     private fun type(value: String) = value.forEach { compose.onNodeWithTag("key_$it").performClick() }
 
     private fun shot(name: String) {
@@ -108,6 +123,7 @@ class SmallScreenTest {
         waitFor("Please enter the reading")
         assertKeypadOnScreen("Next")
         type("13.7")
+        assertGlucoseChoicesOnScreen()
         shot("small_01_bgl")
     }
 
@@ -118,6 +134,7 @@ class SmallScreenTest {
         waitFor("Please enter the reading")
         assertKeypadOnScreen("Next")
         type("13.7")
+        assertGlucoseChoicesOnScreen()
         shot("small_02_bgl_largest")
     }
 
@@ -130,6 +147,7 @@ class SmallScreenTest {
         click("Next")
         compose.onNodeWithText("Please enter a reading of 33.3 or less.").assertIsDisplayed()
         assertKeypadOnScreen("Next")
+        assertGlucoseChoicesOnScreen()
         shot("small_03_bgl_error")
     }
 
@@ -140,6 +158,7 @@ class SmallScreenTest {
         waitFor("Please enter the reading")
         assertKeypadOnScreen("Next")
         type("13.7")
+        assertGlucoseChoicesOnScreen()
         shot("small_04_bgl_landscape")
     }
 
@@ -148,7 +167,7 @@ class SmallScreenTest {
         enlargePhoneFont()
         show(largest) { CheckInScreen(onClose = {}, onMeasure = {}, onCheckIn = {}) }
         waitFor("Please enter the reading")
-        click("Change the time of day")
+        compose.onNodeWithTag("time_of_day").performClick()
         click("Lunch")
         type("13.7")
         click("Next")
@@ -186,6 +205,18 @@ class SmallScreenTest {
     }
 
     @Test
+    fun `a PIN that starts with 0 unlocks`() {
+        val salt = PinHasher.newSalt()
+        runBlocking { app.container.settingsStore.update { it.copy(pinSalt = salt, pinHash = PinHasher.hash("0412", salt)) } }
+        var unlocked = false
+        show(Settings(setupDone = true)) { UnlockScreen(onBack = {}, onUnlocked = { unlocked = true }) }
+        waitFor("Please enter your PIN")
+        type("0412")
+        click("Unlock")
+        assertTrue("The PIN 0412 should unlock the plan", unlocked)
+    }
+
+    @Test
     fun `the sliding-scale keypad stays on screen at the largest text`() {
         enlargePhoneFont()
         show(largest.copy(setupDone = false)) { PlanSetupScreen(onClose = {}, onFinished = {}) }
@@ -199,6 +230,60 @@ class SmallScreenTest {
         assertKeypadOnScreen("Next")
         type("10")
         shot("small_09_scale_largest")
+    }
+
+    @Test
+    fun `the logbook list keeps the chart and the day in view on a small phone`() {
+        val today = runBlocking { app.container.repository.logicalToday(app.container.repository.currentPlan()) }
+        runBlocking { TestRecords.seedLogbook(app.container.repository, today) }
+        show(Settings(setupDone = true)) { LogbookScreen(onBack = {}, onDay = {}) }
+        click("List")
+        waitFor("Today, " + UiFormat.dayLong(today))
+        shot("small_10_logbook_list")
+
+        // Scrolling slides Back and the heading away, while the chart and the day's heading stay at the top.
+        compose.onNode(hasScrollToIndexAction()).performTouchInput { swipeUp(startY = bottom * 0.9f, endY = top, durationMillis = 400) }
+        compose.waitForIdle()
+        compose.onNodeWithText("Back").assertIsNotDisplayed()
+        compose.onNode(hasContentDescription(UiFormat.dayLong(today) + ". ", substring = true)).assertIsDisplayed()
+        compose.onNodeWithText("Today, " + UiFormat.dayLong(today)).assertIsDisplayed()
+        shot("small_11_logbook_scrolled")
+    }
+
+    @Test
+    fun `the logbook list at the largest text`() {
+        enlargePhoneFont()
+        val today = runBlocking { app.container.repository.logicalToday(app.container.repository.currentPlan()) }
+        runBlocking { TestRecords.seedLogbook(app.container.repository, today) }
+        show(largest) { LogbookScreen(onBack = {}, onDay = {}) }
+        click("List")
+        waitFor("Today, " + UiFormat.dayLong(today))
+        compose.onNode(hasContentDescription("Breakfast. 13.7 mmol/L", substring = true)).assertExists()
+        shot("small_12_logbook_largest")
+    }
+
+    @Test
+    @Config(qualifiers = "w640dp-h360dp-land-xhdpi")
+    fun `the full-screen chart keeps its buttons and values on screen at the largest text`() {
+        enlargePhoneFont()
+        val repository = app.container.repository
+        val today = runBlocking { repository.logicalToday(repository.currentPlan()) }
+        runBlocking {
+            TestRecords.seedLogbook(repository, today)
+            TestRecords.seedHistory(repository, today)
+        }
+        lateinit var nav: androidx.navigation.NavHostController
+        show(largest) {
+            nav = androidx.navigation.compose.rememberNavController()
+            io.github.wkoller.glucosetracker.ui.nav.AppNavHost(
+                startWithSetup = false, openSlot = null, onSlotOpened = {}, openBackup = false, onBackupOpened = {}, navController = nav,
+            )
+        }
+        compose.runOnUiThread { nav.navigate(io.github.wkoller.glucosetracker.ui.nav.Routes.logbookChart(today.minusDays(1).toString())) }
+        waitFor("Earlier day")
+        listOf("Back", "Earlier day", "Later day").forEach { compose.onNodeWithText(it).assertIsDisplayed() }
+        compose.onNode(hasContentDescription("Dinner. 15.2 mmol/L", substring = true)).assertIsDisplayed()
+        shot("small_13_day_chart_largest")
     }
 
     private companion object {

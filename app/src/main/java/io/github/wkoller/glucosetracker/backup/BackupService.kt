@@ -43,7 +43,10 @@ class BackupService(
         markSaved()
     }
 
-    /** Writes a backup into the app's cache and returns a link the share sheet can send. */
+    /**
+     * Writes a backup into the app's cache and returns a link the share sheet can send. It counts as saved only
+     * once the user chooses where to send it, through [BackupSharedReceiver].
+     */
     suspend fun shareFile(password: String?): Uri {
         val bytes = create(password)
         val file = withContext(Dispatchers.IO) {
@@ -51,7 +54,6 @@ class BackupService(
             directory.listFiles()?.forEach { it.delete() }
             File(directory, fileName()).apply { writeBytes(bytes) }
         }
-        markSaved()
         return FileProvider.getUriForFile(context, "${context.packageName}.files", file)
     }
 
@@ -86,7 +88,8 @@ class BackupService(
         afterRestore()
     }
 
-    private suspend fun markSaved() {
+    /** Records that a backup file has just been saved or sent, which puts off the backup reminder. */
+    suspend fun markSaved() {
         val now = Instant.now(clock).toEpochMilli()
         settings.update { it.copy(lastBackupAt = now) }
     }

@@ -1,33 +1,48 @@
 package io.github.wkoller.glucosetracker.ui.checkin
 
-import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.wkoller.glucosetracker.R
@@ -49,6 +64,8 @@ import io.github.wkoller.glucosetracker.ui.components.BglValue
 import io.github.wkoller.glucosetracker.ui.components.BigButton
 import io.github.wkoller.glucosetracker.ui.components.ButtonStyle
 import io.github.wkoller.glucosetracker.ui.components.ConfirmDialog
+import io.github.wkoller.glucosetracker.ui.components.DialButton
+import io.github.wkoller.glucosetracker.ui.components.EMERGENCY_NUMBER
 import io.github.wkoller.glucosetracker.ui.components.FactRow
 import io.github.wkoller.glucosetracker.ui.components.LabeledField
 import io.github.wkoller.glucosetracker.ui.components.NoticeCard
@@ -61,6 +78,9 @@ import io.github.wkoller.glucosetracker.ui.components.SpeakButton
 import io.github.wkoller.glucosetracker.ui.components.StatusChip
 import io.github.wkoller.glucosetracker.ui.components.StepScaffold
 import io.github.wkoller.glucosetracker.ui.components.labelRes
+import io.github.wkoller.glucosetracker.ui.components.meterKeys
+import io.github.wkoller.glucosetracker.ui.components.meterShowsRes
+import io.github.wkoller.glucosetracker.ui.components.wordRes
 import io.github.wkoller.glucosetracker.ui.components.label
 import io.github.wkoller.glucosetracker.ui.components.phrase
 import io.github.wkoller.glucosetracker.ui.components.tomorrowPhrase
@@ -74,9 +94,12 @@ fun CheckInScreen(onClose: () -> Unit, onMeasure: (String) -> Unit, onCheckIn: (
     val ui by vm.ui.collectAsStateWithLifecycle()
     BackHandler { if (!vm.back()) onClose() }
 
-    val plan = ui.plan
-    if (ui.loading || plan == null) {
+    if (ui.loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        return
+    }
+    if (ui.plan == null) {
+        NoPlanStep(onClose)
         return
     }
     val onBack = { if (!vm.back()) onClose() }
@@ -96,6 +119,20 @@ fun CheckInScreen(onClose: () -> Unit, onMeasure: (String) -> Unit, onCheckIn: (
     ui.confirm?.let { pending -> DoseConfirmDialog(ui, pending, vm) }
 }
 
+/** Shown in place of the check-in when no plan has been set up, so there is no scale to give a dose from. */
+@Composable
+private fun NoPlanStep(onClose: () -> Unit) {
+    StepScaffold(
+        step = 0,
+        stepCount = 0,
+        title = stringResource(R.string.home_check_bgl),
+        onBack = onClose,
+        actions = { BigButton(stringResource(R.string.go_home), onClick = onClose, icon = R.drawable.ic_home) },
+    ) {
+        Text(stringResource(R.string.checkin_no_plan), style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
 @Composable
 private fun BglStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit) {
     var choosingSlot by remember { mutableStateOf(false) }
@@ -112,29 +149,25 @@ private fun BglStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit) {
         NumberInput.TooHigh -> R.string.checkin_bgl_too_high
         else -> null
     }
+    // Everything to press sits beside the keypad or beside Back, so nothing is hidden under the keypad on a small screen.
+    val flag = ui.bglFlag
     NumberEntryScaffold(
         title = stringResource(R.string.checkin_bgl_title, ui.slot.phrase()),
         onBack = onBack,
         value = ui.bglText,
-        unit = stringResource(R.string.unit_mmol),
+        display = flag?.let { stringResource(it.wordRes()) } ?: ui.bglText,
+        displayDescription = flag?.let { stringResource(it.meterShowsRes()) },
+        unit = if (flag == null) stringResource(R.string.unit_mmol) else "",
         onValueChange = vm::setBglText,
         error = error?.let { stringResource(it) },
         maxDecimals = 1,
         maxIntegerDigits = 2,
+        wordKeys = meterKeys(flag, vm::meterShows),
+        headerAction = { TimeOfDayButton(ui.slot, onChoose = { choosingSlot = true }) },
         action = { BigButton(stringResource(R.string.next), onClick = vm::submitBgl, enabled = !ui.busy) },
     ) {
         explanation?.let { NoticeCard(NoticeKind.DANGER, stringResource(R.string.checkin_check_number), stringResource(it)) }
         Text(stringResource(R.string.checkin_bgl_body), style = MaterialTheme.typography.bodyLarge)
-        BigButton(
-            stringResource(R.string.checkin_change_time_of_day),
-            onClick = { choosingSlot = true },
-            icon = R.drawable.ic_schedule,
-            style = ButtonStyle.SECONDARY,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-            BigButton(stringResource(R.string.checkin_meter_lo), onClick = { vm.meterShows(MeterFlag.LO) }, style = ButtonStyle.SECONDARY, modifier = Modifier.weight(1f))
-            BigButton(stringResource(R.string.checkin_meter_hi), onClick = { vm.meterShows(MeterFlag.HI) }, style = ButtonStyle.SECONDARY, modifier = Modifier.weight(1f))
-        }
     }
     if (choosingSlot) {
         AlertDialog(
@@ -151,6 +184,50 @@ private fun BglStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit) {
                 TextButton(onClick = { choosingSlot = false }) { Text(stringResource(R.string.cancel), style = MaterialTheme.typography.labelLarge) }
             },
         )
+    }
+}
+
+/**
+ * The check this reading belongs to, such as Breakfast, in a button that opens the list of checks. It
+ * shows the current choice like a form field, with an arrow to say it can be changed. At the very largest
+ * text sizes the "Time of day" label is left out, so the button stays one line and fits above the keypad.
+ */
+@Composable
+private fun TimeOfDayButton(slot: Slot, onChoose: () -> Unit) {
+    val prefs = LocalUiPrefs.current
+    val showLabel = LocalDensity.current.fontScale <= TIME_LABEL_MAX_FONT_SCALE
+    val name = slot.label()
+    val description = stringResource(R.string.checkin_time_of_day_now, slot.phrase())
+    val actionLabel = stringResource(R.string.checkin_change_time_of_day)
+    OutlinedButton(
+        onClick = onChoose,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary),
+        contentPadding = PaddingValues(start = 14.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
+        modifier = Modifier
+            .heightIn(min = 56.dp)
+            .clearAndSetSemantics {
+                contentDescription = description
+                role = Role.Button
+                testTag = "time_of_day"
+                onClick(label = actionLabel) {
+                    onChoose()
+                    true
+                }
+            },
+    ) {
+        if (prefs.showIcons) {
+            Icon(painterResource(R.drawable.ic_schedule), contentDescription = null, modifier = Modifier.size(28.dp))
+            Spacer(Modifier.width(10.dp))
+        }
+        Column {
+            if (showLabel) {
+                Text(stringResource(R.string.checkin_time_of_day), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(name, style = MaterialTheme.typography.labelLarge)
+        }
+        Spacer(Modifier.width(6.dp))
+        Icon(painterResource(R.drawable.ic_expand_more), contentDescription = null, modifier = Modifier.size(28.dp))
     }
 }
 
@@ -196,45 +273,43 @@ private fun LowStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit) {
     }
 }
 
-/**
- * Opens the phone's dialler with 000, or with the support person's number when one is saved. The
- * user still presses call in the dialler, so a stray tap never rings anyone.
- */
+/** Buttons that open the phone's dialler with 000, and with the support person's number when one is saved. */
 @Composable
 private fun CallButtons() {
-    val context = LocalContext.current
     val settings by appContainer().settingsStore.settings.collectAsStateWithLifecycle(null)
-    fun dial(number: String) {
-        runCatching { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null))) }
-    }
-    BigButton(stringResource(R.string.low_call_emergency), onClick = { dial(EMERGENCY_NUMBER) }, icon = R.drawable.ic_call, style = ButtonStyle.DANGER)
+    DialButton(stringResource(R.string.low_call_emergency), EMERGENCY_NUMBER, style = ButtonStyle.DANGER)
     settings?.takeIf { it.hasSupportPerson }?.let { person ->
         val label = if (person.supportName.isBlank()) stringResource(R.string.low_call_support_unnamed) else stringResource(R.string.low_call_support, person.supportName)
-        BigButton(label, onClick = { dial(person.supportPhone) }, icon = R.drawable.ic_call, style = ButtonStyle.SECONDARY)
+        DialButton(label, person.supportPhone)
     }
 }
-
-/** Australia's emergency number. The low-reading advice already tells the user to call it. */
-private const val EMERGENCY_NUMBER = "000"
 
 @Composable
 private fun RecheckCountdown(at: Instant) {
     val context = LocalContext.current
-    var remaining by remember { mutableStateOf(0L) }
+    fun secondsLeft() = ((at.toEpochMilli() - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+    var remaining by remember(at) { mutableLongStateOf(secondsLeft()) }
     LaunchedEffect(at) {
         while (true) {
-            remaining = ((at.toEpochMilli() - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+            remaining = secondsLeft()
             if (remaining == 0L) break
             delay(1000)
         }
     }
-    val text = if (remaining > 0) {
-        stringResource(R.string.checkin_low_timer_running, UiFormat.time(context, at), remaining / 60, remaining % 60)
-    } else {
-        stringResource(R.string.checkin_low_timer_done)
-    }
+    val time = UiFormat.time(context, at)
+    val text = if (remaining > 0) stringResource(R.string.checkin_low_timer_running, time, remaining / 60, remaining % 60) else stringResource(R.string.checkin_low_timer_done)
+    // The seconds change every second, which a screen reader would keep reading out, so it hears the whole minutes instead.
+    val minutesLeft = ((remaining + 59) / 60).toInt()
+    val spoken = if (remaining > 0) pluralStringResource(R.plurals.checkin_low_timer_spoken, minutesLeft, time, minutesLeft) else text
     SectionCard(stringResource(R.string.checkin_low_timer_title), icon = R.drawable.ic_timer) {
-        Text(text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+        Text(
+            text,
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.clearAndSetSemantics {
+                contentDescription = spoken
+                liveRegion = LiveRegionMode.Polite
+            },
+        )
     }
 }
 
@@ -253,7 +328,9 @@ private fun ResultStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit) 
         stringResource(R.string.checkin_result_no_dose, insulin)
     }
     val noticeTexts = advice.notices.mapNotNull { notice -> noticeText(notice, ui, unitsText) }
-    val spoken = (listOf(headline, doseSentence) + noticeTexts.map { it.second }).joinToString(" ")
+    // A level that is back up after a low earlier in this check-in can drop again without some longer-acting carbohydrate.
+    val recovered = if (ui.lowThisCheck) stringResource(R.string.checkin_low_recovered) else null
+    val spoken = (listOf(headline, doseSentence) + noticeTexts.map { it.second } + listOfNotNull(recovered)).joinToString(" ")
     AutoSpeak(spoken)
 
     StepScaffold(
@@ -285,6 +362,7 @@ private fun ResultStep(ui: CheckInUi, vm: CheckInViewModel, onBack: () -> Unit) 
             if (advice.units > 0) Text(unitsText, style = MaterialTheme.typography.displayLarge)
         }
         noticeTexts.forEach { (kind, text, title) -> NoticeCard(kind, title, text) }
+        recovered?.let { NoticeCard(NoticeKind.INFO, stringResource(R.string.checkin_low_recovered_title), it) }
         SpeakButton(spoken)
         ScaleTable(plan.scale, insulin, advice.bandIndex)
     }
@@ -554,3 +632,6 @@ private fun AutoSpeak(text: String) {
     val speaker = LocalSpeaker.current
     LaunchedEffect(text) { if (prefs.readAloud) speaker?.speak(text, prefs.speechRate) }
 }
+
+/** Above this text scale the time-of-day button shows only the check's name. */
+private const val TIME_LABEL_MAX_FONT_SCALE = 1.5f

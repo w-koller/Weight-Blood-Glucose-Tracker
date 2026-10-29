@@ -22,7 +22,23 @@ class AssistantGuardTest {
             "Can I skip my NovoMix 30?",
             "I forgot my dose, what should I do?",
             "Should I take my tablets if I'm not eating?",
+            "Do I need NovoRapid now?",
+            "Is it OK to skip my insulin tonight?",
+            "Insulin now?",
+            "What is on my sliding scale?",
         ).forEach { assertEquals(it, QuestionKind.DOSE, kind(it)) }
+    }
+
+    @Test
+    fun `signs of a low level get the app's answer`() {
+        listOf("I feel shaky", "I'm sweating and a bit dizzy", "I think I'm going low", "Am I having a hypo?")
+            .forEach { assertEquals(it, QuestionKind.HYPO, kind(it)) }
+    }
+
+    @Test
+    fun `thoughts of suicide or self-harm get the crisis answer`() {
+        listOf("I want to end my life", "I have been thinking about suicide", "Some days I want to die")
+            .forEach { assertEquals(it, QuestionKind.CRISIS, kind(it)) }
     }
 
     @Test
@@ -39,6 +55,9 @@ class AssistantGuardTest {
             "How much weight have I lost?",
             "What does BGL mean?",
             "Should I take my weight before breakfast?",
+            "When did I have low readings?",
+            "Have I taken my insulin today?",
+            "What did the scales say this morning?",
         ).forEach { assertEquals(it, QuestionKind.GENERAL, kind(it)) }
     }
 
@@ -51,5 +70,7 @@ class AssistantGuardTest {
         assertTrue(AssistantGuard.hasUnsupportedAmounts("You could try 12 units instead.", allowed))
         assertTrue(AssistantGuard.hasUnsupportedAmounts("Take 7u tonight.", allowed))
         assertFalse(AssistantGuard.hasUnsupportedAmounts("Your average was 13.7 mmol/L.", allowed))
+        // 8 units is on the sliding scale but was never recorded, so an answer that works it out is caught.
+        assertTrue(AssistantGuard.hasUnsupportedAmounts("For a reading of 18, the scale gives 8 units.", allowed))
     }
 }
