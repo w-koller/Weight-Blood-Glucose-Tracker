@@ -17,6 +17,7 @@ import io.github.wkoller.glucosetracker.domain.model.MedicineKind
 import io.github.wkoller.glucosetracker.domain.model.Slot
 import io.github.wkoller.glucosetracker.domain.model.SlotNaming
 import kotlinx.coroutines.runBlocking
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -24,6 +25,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.LocalDate
+import java.util.Base64
 
 @RunWith(AndroidJUnit4::class)
 class BackupTest {
@@ -99,11 +101,18 @@ class BackupTest {
         assertEquals(BackupReadResult.NeedsPassword, BackupFile.read(locked, null))
         assertEquals(BackupReadResult.WrongPassword, BackupFile.read(locked, "wrong pass"))
 
-        // Change one character of the encrypted data: the file is now damaged.
-        val text = String(locked)
-        val start = text.indexOf("\"data\": \"") + 9
-        val damaged = text.substring(0, start) + (if (text[start] == 'A') 'B' else 'A') + text.substring(start + 1)
-        assertEquals(BackupReadResult.WrongPassword, BackupFile.read(damaged.toByteArray(), "secret pass"))
+        // Change one bit of the encrypted data: the file is now damaged, which the encryption reports as it does a
+        // wrong password. The bit is changed in the decoded data, not the file's text, because JSON writes a '/'
+        // as "\/": editing the text where the data starts with '/' added a character instead, about 1 run in 64.
+        val file = JSONObject(String(locked))
+        val data = Base64.getDecoder().decode(file.getString("data"))
+        data[0] = (data[0].toInt() xor 1).toByte()
+        file.put("data", Base64.getEncoder().encodeToString(data))
+        assertEquals(BackupReadResult.WrongPassword, BackupFile.read(file.toString().toByteArray(), "secret pass"))
+
+        // Encrypted data that is not base64 at all is damaged.
+        file.put("data", "not base64!")
+        assertEquals(BackupReadResult.Damaged, BackupFile.read(file.toString().toByteArray(), "secret pass"))
 
         assertEquals(BackupReadResult.NotABackup, BackupFile.read("Date,Weight\n9/10/2026,116.3".toByteArray(), null))
         assertEquals(BackupReadResult.NotABackup, BackupFile.read("""{"format":"something-else","version":1}""".toByteArray(), null))

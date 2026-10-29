@@ -13,6 +13,7 @@
 
 - Version 1.0.0-rc.2 (versionCode 6), published as a pre-release.
 - The assistant's page is `AssistantContent` with `AssistantActions`, so tests can show it in each state.
+- A backup test no longer fails about 1 run in 64. It changed the file's text where JSON writes a `/` as `\/`, which added a character instead of changing one.
 
 ## 1.0.0-rc.1
 
