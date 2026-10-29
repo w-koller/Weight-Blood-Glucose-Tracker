@@ -1,10 +1,10 @@
 package io.github.wkoller.glucosetracker.ui.logbook
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,7 +15,14 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
@@ -23,9 +30,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.drawText
@@ -49,6 +61,7 @@ import io.github.wkoller.glucosetracker.ui.theme.StatusColors
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlinx.coroutines.launch
 import kotlin.math.floor
 
 /** The chart shows this many days side by side, so each day has room for its readings. */
@@ -74,6 +87,11 @@ fun chartStart(focus: LocalDate, first: LocalDate, last: LocalDate): LocalDate {
  * as it scrolls. The day at the top of the list is highlighted and [focusPoint], the reading at the top, is
  * ringed with its value. Pressing a day calls [onDay] to open that day on the full-screen chart. TalkBack reads
  * each day from [describeDay].
+ *
+ * Holding a finger on the chart and sliding it sideways moves through the days: the chart follows the finger,
+ * and [onScrub] is called with the day in the middle each time it changes, so the list can go to that day. A
+ * slide past the earliest day calls [onEarliest], so earlier days can be loaded. TalkBack can do the same with
+ * the actions for the day before and the day after.
  */
 @Composable
 fun LogbookChart(
@@ -86,7 +104,9 @@ fun LogbookChart(
     height: Dp,
     describeDay: (LocalDate) -> String,
     onDay: (LocalDate) -> Unit,
+    onScrub: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
+    onEarliest: () -> Unit = {},
 ) {
     val prefs = LocalUiPrefs.current
     val status = LocalStatusColors.current
@@ -96,12 +116,64 @@ fun LogbookChart(
     val focusLabelStyle = labelStyle.copy(color = colors.onSurface, fontWeight = FontWeight.Bold)
     val bubbleStyle = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
     val start = chartStart(focus, first, last)
-    // The window slides to its new place, or jumps there when motion is reduced.
-    val animatedStart by animateFloatAsState(
-        targetValue = start.toEpochDay().toFloat(),
-        animationSpec = if (prefs.reduceMotion) snap() else tween(durationMillis = 350),
-        label = "chart window",
-    )
+    val latestStart = last.minusDays(CHART_DAYS - 1L).toEpochDay().toFloat()
+    val earliestStart = minOf(first.toEpochDay().toFloat(), latestStart)
+    // The first day shown, in days. It slides to follow the list, or jumps there when motion is reduced.
+    val window = remember { Animatable(start.toEpochDay().toFloat()) }
+    var dragging by remember { mutableStateOf(false) }
+    var dragStart by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(start, dragging) {
+        if (dragging) return@LaunchedEffect
+        val target = start.toEpochDay().toFloat()
+        if (prefs.reduceMotion) window.snapTo(target) else window.animateTo(target, tween(durationMillis = 350))
+    }
+    val shownStart = if (dragging) dragStart else window.value
+    // While the chart is dragged, the day in the middle is the one the list goes to, so it is the one highlighted.
+    val highlighted = if (dragging) LocalDate.ofEpochDay(middleDay(dragStart)) else focus
+    val scope = rememberCoroutineScope()
+    val haptics = LocalHapticFeedback.current
+    val bounds by rememberUpdatedState(earliestStart to latestStart)
+    val scrub by rememberUpdatedState(onScrub)
+    val earliest by rememberUpdatedState(onEarliest)
+    val drag = Modifier.pointerInput(Unit) {
+        var middle = 0L
+        var askedForEarlier = false
+        detectHorizontalDragGestures(
+            onDragStart = {
+                dragStart = window.value
+                middle = middleDay(dragStart)
+                askedForEarlier = false
+                dragging = true
+            },
+            onDragEnd = {
+                scope.launch {
+                    window.snapTo(dragStart)
+                    dragging = false
+                }
+            },
+            onDragCancel = {
+                scope.launch {
+                    window.snapTo(dragStart)
+                    dragging = false
+                }
+            },
+        ) { change, dragAmount ->
+            change.consume()
+            // Sliding to the right shows earlier days, as if pulling the days along with the finger.
+            val (low, high) = bounds
+            dragStart = (dragStart - dragAmount / (size.width / CHART_DAYS.toFloat())).coerceIn(low, high)
+            if (dragStart <= low && !askedForEarlier) {
+                askedForEarlier = true
+                earliest()
+            }
+            val day = middleDay(dragStart)
+            if (day != middle) {
+                middle = day
+                if (prefs.haptics) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                scrub(LocalDate.ofEpochDay(day))
+            }
+        }
+    }
     val focusWord = focusPoint?.meterFlag?.let { stringResource(it.wordRes()) }
     val zone = ZoneId.systemDefault()
     // LO and HI sit at the bottom and top edges rather than stretching the chart to the meter's limits.
@@ -113,6 +185,8 @@ fun LogbookChart(
                 Modifier
                     .fillMaxWidth()
                     .height(height)
+                    .then(drag)
+                    .testTag("logbook_chart")
                     .semantics { isTraversalGroup = true },
             ) {
                 Canvas(Modifier.fillMaxWidth().height(height).clipToBounds()) {
@@ -120,30 +194,30 @@ fun LogbookChart(
                     val labelHeight = measurer.measure("0", labelStyle).size.height.toFloat()
                     val plotTop = labelHeight + 14.dp.toPx()
                     val plotBottom = size.height - 10.dp.toPx()
-                    fun xOf(date: LocalDate, fraction: Float) = (date.toEpochDay() + fraction - animatedStart) * columnWidth
+                    fun xOf(date: LocalDate, fraction: Float) = (date.toEpochDay() + fraction - shownStart) * columnWidth
                     fun yOf(tenths: Int) = plotBottom - (plotBottom - plotTop) * (tenths.coerceIn(0, topTenths).toFloat() / topTenths)
-                fun yOf(point: TrendPoint) = when (point.meterFlag) {
-                    MeterFlag.HI -> plotTop
-                    MeterFlag.LO -> plotBottom
-                    null -> yOf(point.value)
-                }
+                    fun yOf(point: TrendPoint) = when (point.meterFlag) {
+                        MeterFlag.HI -> plotTop
+                        MeterFlag.LO -> plotBottom
+                        null -> yOf(point.value)
+                    }
                     fun fractionOf(point: TrendPoint): Float {
                         // Readings after midnight that belong to the day before stay at the end of that day.
                         val sinceMidnight = Duration.between(point.date.atStartOfDay(zone).toInstant(), point.takenAt).toMinutes() / MINUTES_PER_DAY
                         return sinceMidnight.coerceIn(0.03f, 0.97f)
                     }
 
-                    val firstDay = floor(animatedStart).toLong()
+                    val firstDay = floor(shownStart).toLong()
                     for (day in firstDay - 1..firstDay + CHART_DAYS + 1) {
                         val date = LocalDate.ofEpochDay(day)
                         val left = xOf(date, 0f)
                         val background = when {
-                            date == focus -> colors.primaryContainer
+                            date == highlighted -> colors.primaryContainer
                             day % 2 == 0L -> colors.surfaceContainer
                             else -> colors.surfaceContainerHigh
                         }
                         drawRect(background, topLeft = Offset(left, 0f), size = Size(columnWidth, size.height))
-                        val label = measurer.measure(UiFormat.weekdayShort(date), if (date == focus) focusLabelStyle else labelStyle)
+                        val label = measurer.measure(UiFormat.weekdayShort(date), if (date == highlighted) focusLabelStyle else labelStyle)
                         drawText(label, topLeft = Offset(left + (columnWidth - label.size.width) / 2, 6.dp.toPx()))
                     }
 
@@ -193,6 +267,8 @@ fun LogbookChart(
 
                 // One target per day for touch and TalkBack. They follow the chart's resting place, not the slide.
                 val choose = stringResource(R.string.logbook_chart_show_day)
+                val before = stringResource(R.string.logbook_chart_day_before)
+                val after = stringResource(R.string.logbook_chart_day_after)
                 Row(Modifier.fillMaxWidth().height(height)) {
                     repeat(CHART_DAYS) { index ->
                         val date = start.plusDays(index.toLong())
@@ -201,7 +277,14 @@ fun LogbookChart(
                             Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .semantics { contentDescription = description }
+                                .semantics {
+                                    contentDescription = description
+                                    // TalkBack's way of sliding the chart: the list moves a day at a time.
+                                    customActions = listOf(
+                                        CustomAccessibilityAction(before) { onScrub(focus.minusDays(1)); true },
+                                        CustomAccessibilityAction(after) { onScrub(focus.plusDays(1)); true },
+                                    )
+                                }
                                 .clickable(onClickLabel = choose) { onDay(date) }
                                 .testTag("chart_day_$date"),
                         )
@@ -227,6 +310,9 @@ private fun onPointColor(status: GlucoseStatus?, colors: StatusColors) = when (s
 }
 
 private const val MINUTES_PER_DAY = 24f * 60f
+
+/** The day in the middle of the chart when its first day is [start], as a count of days. */
+private fun middleDay(start: Float): Long = floor(start + CHART_DAYS / 2f).toLong()
 
 /** The chart always reaches at least 20 mmol/L, and grows in steps of 5 for higher readings up to 35. */
 private const val Y_TOP_TENTHS = 200

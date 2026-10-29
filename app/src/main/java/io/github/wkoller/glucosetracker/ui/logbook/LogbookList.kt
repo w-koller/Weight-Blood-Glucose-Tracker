@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -36,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -83,6 +86,7 @@ import io.github.wkoller.glucosetracker.ui.components.ScreenTitle
 import io.github.wkoller.glucosetracker.ui.components.StatusChip
 import io.github.wkoller.glucosetracker.ui.components.label
 import io.github.wkoller.glucosetracker.ui.theme.LocalUiPrefs
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import kotlin.math.roundToInt
 
@@ -110,11 +114,15 @@ internal fun LogbookListScreen(
     onReturnHandled: () -> Unit,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val header = rememberSaveable(saver = CollapsingHeaderState.Saver) { CollapsingHeaderState() }
     val targets = ui.plan?.targets ?: GlucoseTargets.DEFAULT
     var open by rememberSaveable { mutableStateOf(listOf<String>()) }
     val layout = remember(ui.days) { ListLayout.of(ui.days) }
+    // Dragging up or down on the heading or the chart scrolls the list too, so the heading can slide away from anywhere,
+    // which matters most with the phone turned sideways. Sideways drags on the chart move it through the days instead.
+    val pageScroll = Modifier.scrollable(listState, Orientation.Vertical, reverseDirection = true)
 
     // Back from the full-screen chart: bring the day it was showing to the top, loading earlier days first if needed.
     LaunchedEffect(returnDate, layout, ui.loading) {
@@ -132,7 +140,7 @@ internal fun LogbookListScreen(
         BoxWithConstraints(Modifier.padding(padding).fillMaxSize()) {
             val chartHeight = (maxHeight * CHART_SHARE).coerceIn(MIN_CHART, MAX_CHART)
             Column(Modifier.fillMaxSize().nestedScroll(header.connection)) {
-                CollapsingHeader(header) {
+                CollapsingHeader(header, pageScroll) {
                     Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         BackButton(onBack)
                         ScreenTitle(stringResource(R.string.logbook_title))
@@ -156,6 +164,10 @@ internal fun LogbookListScreen(
                     height = chartHeight,
                     describeDay = { date -> describeChartDay(context, date, layout.day(date)) },
                     onDay = onChart,
+                    // Sliding the chart brings the day in its middle to the top of the list, or the nearest earlier day with records.
+                    onScrub = { date -> layout.indexAtOrBefore(date)?.let { index -> scope.launch { listState.scrollToItem(index) } } },
+                    modifier = pageScroll,
+                    onEarliest = { if (ui.hasEarlier) onEarlier() },
                 )
                 LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth()) {
                     ui.days.forEach { day ->
@@ -267,9 +279,9 @@ private class CollapsingHeaderState(initiallyHidden: Float = 0f) {
 }
 
 @Composable
-private fun CollapsingHeader(state: CollapsingHeaderState, content: @Composable () -> Unit) {
+private fun CollapsingHeader(state: CollapsingHeaderState, modifier: Modifier, content: @Composable () -> Unit) {
     Box(
-        Modifier
+        modifier
             .fillMaxWidth()
             .clipToBounds()
             .layout { measurable, constraints ->

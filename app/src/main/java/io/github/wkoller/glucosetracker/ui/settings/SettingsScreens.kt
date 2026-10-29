@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.FileProvider
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.wkoller.glucosetracker.BuildConfig
 import io.github.wkoller.glucosetracker.CrashReporter
@@ -231,5 +232,23 @@ fun AboutScreen(onBack: () -> Unit, onLicences: () -> Unit = {}) {
             Text(stringResource(R.string.about_licence), style = MaterialTheme.typography.bodyLarge)
             BigButton(stringResource(R.string.licences_open), onClick = onLicences, icon = R.drawable.ic_description, style = ButtonStyle.SECONDARY)
         }
+        SectionCard(stringResource(R.string.about_github_title)) {
+            Text(stringResource(R.string.about_github_body), style = MaterialTheme.typography.bodyLarge)
+            Text(PROJECT_URL.removePrefix("https://"), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            // The browser opens the page, so the app itself still uses the internet only for its downloads.
+            BigButton(stringResource(R.string.about_github_open), onClick = {
+                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, PROJECT_URL.toUri())) }
+            }, icon = R.drawable.ic_cloud, style = ButtonStyle.SECONDARY)
+            val appName = stringResource(R.string.app_name)
+            val shareText = stringResource(R.string.about_share_text, PROJECT_URL)
+            val shareTitle = stringResource(R.string.about_share)
+            BigButton(shareTitle, onClick = {
+                val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_SUBJECT, appName).putExtra(Intent.EXTRA_TEXT, shareText)
+                context.startActivity(Intent.createChooser(send, shareTitle))
+            }, icon = R.drawable.ic_share)
+        }
     }
 }
+
+/** The app's page on GitHub, with its code, releases and changes. */
+const val PROJECT_URL = "https://github.com/w-koller/Weight-Blood-Glucose-Tracker"

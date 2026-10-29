@@ -49,7 +49,16 @@ class AssistantViewModel(private val container: AppContainer, progressDays: Int?
         viewModelScope.launch { _ui.update { it.copy(context = service.context(progressDays)) } }
         viewModelScope.launch { container.models.state.collect { state -> _ui.update { it.copy(modelState = state) } } }
         viewModelScope.launch { container.settingsStore.settings.collect { s -> _ui.update { it.copy(enabled = s.assistantEnabled) } } }
-        viewModelScope.launch { container.models.refresh() }
+        viewModelScope.launch {
+            container.models.refresh()
+            // While the model downloads, its progress shows here, and the question box appears once it is ready.
+            container.models.watchDownload()
+        }
+    }
+
+    /** Turns on the assistant when its model is downloaded but it was turned off, so questions can be asked. */
+    fun turnOn() {
+        viewModelScope.launch { container.settingsStore.update { it.copy(assistantEnabled = true) } }
     }
 
     fun setPeriod(period: ReadoutPeriod) = _ui.update { it.copy(period = period, summary = null) }
