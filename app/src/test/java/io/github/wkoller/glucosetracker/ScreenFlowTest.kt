@@ -12,6 +12,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasSetTextAction
@@ -131,8 +132,10 @@ class ScreenFlowTest {
         app.container.settingsStore.update { it.copy(setupDone = true) }
     }
 
+    /** The time of day sits beside Back as a button that shows the current choice, such as Breakfast. */
     private fun chooseSlot(slotName: String) {
-        click("Change the time of day")
+        compose.onNodeWithTag("time_of_day").performClick()
+        compose.waitForIdle()
         click(slotName)
     }
 
@@ -367,6 +370,145 @@ class ScreenFlowTest {
         waitFor("Please do not give NovoRapid now.")
         shot("checkin_30_low")
         assertTrue(compose.onAllNodesWithText("I gave", substring = true).fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun `LO and HI are keys on the keypad and the reading is saved with Next`() {
+        seedPlan()
+        show { CheckInScreen(onClose = {}, onMeasure = {}, onCheckIn = {}) }
+        waitFor("Please enter the reading")
+        chooseSlot("Lunch")
+        val today = runBlocking { repository.logicalToday(repository.currentPlan()) }
+        // The LO key, and the LO in the reading once it is pressed.
+        fun loTexts() = compose.onAllNodesWithText("LO").fetchSemanticsNodes().size
+        assertEquals(1, loTexts())
+
+        compose.onNodeWithTag("key_lo").performClick()
+        compose.waitForIdle()
+        assertEquals(2, loTexts())
+        // The reading reads as the meter does, for TalkBack too. The key with the same words is the one that can be pressed.
+        compose.onNode(hasContentDescription("My meter shows LO") and !androidx.compose.ui.test.hasClickAction()).assertExists()
+        assertTrue("LO is not saved until Next is pressed", runBlocking { repository.readingsBetween(today, today) }.isEmpty())
+        shot("checkin_07_meter_lo")
+
+        // A digit replaces the word, as it would a mistyped number.
+        type("5")
+        assertEquals(1, loTexts())
+        compose.onNodeWithTag("key_hi").performClick()
+        compose.onNodeWithTag("key_lo").performClick()
+        click("Next")
+        waitFor("Please do not give NovoRapid now.")
+        waitForBackgroundWork { runBlocking { repository.readingsBetween(today, today) }.isNotEmpty() }
+        val saved = runBlocking { repository.readingsBetween(today, today) }.single()
+        assertEquals(MeterFlag.LO, saved.meterFlag)
+        assertEquals(Slot.LUNCH, saved.slot)
+    }
+
+    @Test
+    @Config(qualifiers = "w411dp-h891dp-xhdpi")
+    fun `the logbook list shows each check as a line and opens it for the details`() {
+        seedPlan()
+        val today = runBlocking { repository.logicalToday(repository.currentPlan()) }
+        runBlocking { TestRecords.seedLogbook(repository, today) }
+        var charted: LocalDate? = null
+        show { io.github.wkoller.glucosetracker.ui.logbook.LogbookScreen(onBack = {}, onDay = {}, onChart = { charted = it }) }
+        click("List")
+        waitFor("Today, " + UiFormat.dayLong(today))
+        shot("logbook_02_list")
+
+        // Each check is one stop for TalkBack, with its time, value and status, and opens in place.
+        val breakfast = hasContentDescription("Breakfast. 13.7 mmol/L, above your target range.", substring = true)
+        compose.onNode(breakfast and hasContentDescription("4 units of NovoRapid, 30 units of NovoMix 30 and 2 other medicines.", substring = true)).performClick()
+        waitFor("NovoRapid, 4 units given")
+        waitFor("Spironolactone 25 mg, 1 tablet given")
+        compose.onNodeWithText("See or change this day").assertExists()
+        shot("logbook_03_details")
+
+        // The chart has a stop for each of its days, which opens that day on the full-screen chart.
+        val twoDaysAgo = today.minusDays(2)
+        compose.onNode(hasContentDescription(UiFormat.dayLong(twoDaysAgo) + ". 3 readings", substring = true)).performClick()
+        compose.waitForIdle()
+        assertEquals(twoDaysAgo, charted)
+    }
+
+    @Test
+    @Config(qualifiers = "w411dp-h891dp-xhdpi")
+    fun `a day pressed on the chart opens sideways on a full-screen chart, and Back returns to it in the list`() {
+        seedPlan()
+        val today = runBlocking { repository.logicalToday(repository.currentPlan()) }
+        runBlocking { TestRecords.seedLogbook(repository, today) }
+        lateinit var activity: Activity
+        lateinit var nav: androidx.navigation.NavHostController
+        show {
+            activity = LocalActivity.current!!
+            nav = androidx.navigation.compose.rememberNavController()
+            AppNavHost(startWithSetup = false, openSlot = null, onSlotOpened = {}, openBackup = false, onBackupOpened = {}, navController = nav)
+        }
+        compose.runOnUiThread { nav.navigate(io.github.wkoller.glucosetracker.ui.nav.Routes.LOGBOOK) }
+        click("List")
+        waitFor("Today, " + UiFormat.dayLong(today))
+        val orientation = activity.requestedOrientation
+
+        val twoDaysAgo = today.minusDays(2)
+        compose.onNodeWithTag("chart_day_$twoDaysAgo").performClick()
+        waitFor("Earlier day")
+        compose.onNodeWithText(UiFormat.dayLong(twoDaysAgo)).assertIsDisplayed()
+        assertEquals(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE, activity.requestedOrientation)
+        compose.onNode(hasContentDescription("HI (above 33.3 mmol/L), above your target range.", substring = true)).assertExists()
+
+        // Earlier day moves the chart, and Back opens the list at the day the chart was showing.
+        val threeDaysAgo = today.minusDays(3)
+        click("Earlier day")
+        waitFor(UiFormat.dayLong(threeDaysAgo))
+        click("Back")
+        waitFor("List")
+        compose.waitForIdle()
+        compose.onNodeWithText(UiFormat.dayLong(threeDaysAgo)).assertIsDisplayed()
+        assertTrue("The list opens at the day the chart was showing", compose.onAllNodesWithText("Today, " + UiFormat.dayLong(today)).fetchSemanticsNodes().isEmpty())
+        assertEquals(orientation, activity.requestedOrientation)
+        shot("logbook_04_back_from_chart")
+    }
+
+    @Test
+    @Config(qualifiers = "w891dp-h411dp-land-xhdpi")
+    fun `the full-screen chart shows the day's values over the days before`() {
+        seedPlan()
+        val today = runBlocking { repository.logicalToday(repository.currentPlan()) }
+        runBlocking {
+            TestRecords.seedLogbook(repository, today)
+            TestRecords.seedHistory(repository, today)
+        }
+        val nav = showApp()
+        val yesterday = today.minusDays(1)
+        compose.runOnUiThread { nav.navigate(io.github.wkoller.glucosetracker.ui.nav.Routes.logbookChart(yesterday.toString())) }
+        waitFor("Earlier day")
+
+        // TalkBack hears the day, then each value in time order.
+        compose.onNode(hasContentDescription(UiFormat.dayLong(yesterday) + ". 5 readings", substring = true) and hasContentDescription("The small dots show", substring = true)).assertExists()
+        compose.onNode(hasContentDescription("LO (below 1.1 mmol/L), low.", substring = true)).assertIsDisplayed()
+        assertTrue(compose.onAllNodesWithText("Later day").fetchSemanticsNodes().isNotEmpty())
+        shot("logbook_06_day_chart")
+
+        compose.onNode(hasContentDescription("Dinner. 15.2 mmol/L", substring = true)).performClick()
+        waitFor("NovoRapid, 6 units given")
+        shot("logbook_07_day_chart_details")
+        click("Close")
+        compose.waitForIdle()
+        assertTrue(compose.onAllNodesWithText("NovoRapid, 6 units given").fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    @Config(qualifiers = "w411dp-h891dp-xhdpi")
+    fun `the logbook list in the dark theme`() {
+        seedPlan()
+        val today = runBlocking { repository.logicalToday(repository.currentPlan()) }
+        runBlocking { TestRecords.seedLogbook(repository, today) }
+        show(Settings(setupDone = true, theme = io.github.wkoller.glucosetracker.data.prefs.ThemeChoice.DARK)) {
+            io.github.wkoller.glucosetracker.ui.logbook.LogbookScreen(onBack = {}, onDay = {})
+        }
+        click("List")
+        waitFor("Today, " + UiFormat.dayLong(today))
+        shot("logbook_05_dark")
     }
 
     @Test

@@ -41,7 +41,9 @@ when it is added to the app.
 
 - `domain/`: all dose and schedule rules, with no Android code. `SlidingScale`, `DoseAdvisor`,
   `OverrideCheck`, `SlotResolver`, `NextStepEngine`, `ProgressCalculator`, `GlucoseStats`, `ProgressModel`, `LowPatterns`,
-  `DailyLog`, `AssistantGuard` and `PromptBuilder`. Every rule change needs a test here.
+  `DailyLog`, `Logbook`, `AssistantGuard` and `PromptBuilder`. Every rule change needs a test here.
+  `Logbook` turns each day into the lines of the logbook list and the points of the chart above it, and
+  `DayCharts` places one day's readings, and those of the 30 days before, by time of day for the full-screen chart.
   `ProgressModel` is the one source for the Progress screen's charts, what TalkBack reads for each day,
   the PDF report's summary and chart, the readout, and the facts given to the assistant.
 - `app/data`: Room (versioned plans and records) and DataStore settings.
@@ -81,8 +83,10 @@ Copy follows the product-UI rules in `/home/william/informed-trader/VOICE.md`:
 
 Large, always-labelled buttons (`BigButton`, at least 72 dp tall). One question per step
 (`StepScaffold`). Number entry uses `NumberEntryScaffold`, which keeps the value, keypad and main
-button on screen like a keyboard. Extra buttons go in `StepScaffold`'s `moreActions`, which move into
-the content on short screens. Slot names come from `Slot.label()` and `Slot.phrase()`, which follow
+button on screen like a keyboard. Its scrolling header holds words only: buttons go in `wordKeys`,
+beside the digits (LO and HI), or in `headerAction`, beside Back (the time of day), so the keypad never
+hides them. Extra buttons go in `StepScaffold`'s `moreActions`, which move into the content on short
+screens. Slot names come from `Slot.label()` and `Slot.phrase()`, which follow
 the user's choice of meal names or times of day. No gesture-only or long-press-only actions and no
 timeouts. Status is shown with an icon and a word, not colour alone. Respect `LocalUiPrefs` (icons,
 helper text, simple mode, reduce motion, read aloud, slot names) in new components.

@@ -23,6 +23,9 @@ object UiFormat {
     /** "Friday 9 October 2026" */
     fun dayLongYear(date: LocalDate): String = date.format(DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", locale))
 
+    /** "Fri 9", for the days along the top of the logbook chart. */
+    fun weekdayShort(date: LocalDate): String = date.format(DateTimeFormatter.ofPattern("EEE d", locale))
+
     /** "Fri 9 Oct" */
     fun dayShort(date: LocalDate): String = date.format(DateTimeFormatter.ofPattern("EEE d MMM", locale))
 
@@ -36,6 +39,12 @@ object UiFormat {
     }
 
     fun time(context: Context, instant: Instant): String = time(context, instant.atZone(ZoneId.systemDefault()).toLocalTime())
+
+    /** "6 am" or "06:00", for the times along a chart, following the phone's 12- or 24-hour setting. */
+    fun hour(context: Context, time: LocalTime): String {
+        val pattern = if (DateFormat.is24HourFormat(context)) "HH:mm" else "h a"
+        return time.format(DateTimeFormatter.ofPattern(pattern, locale)).lowercase(locale)
+    }
 
     /** "4 units", "1 tablet", "0.5 tablets" or "2 puffs" for a medicine amount. */
     fun dose(context: Context, amount: Double, kind: MedicineKind, unit: String): String {

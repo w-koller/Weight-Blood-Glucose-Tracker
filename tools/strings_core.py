@@ -135,13 +135,13 @@ STRINGS = {
 
     # Check-in
     "checkin_bgl_title": "Your blood glucose level %1$s",
-    "checkin_bgl_body": "Please enter the reading from your glucose meter.",
+    "checkin_bgl_body": "Please enter the reading from your glucose meter. If your meter shows LO or HI, please press that key.",
     "checkin_change_time_of_day": "Change the time of day",
     "checkin_which_time": "Which check is this?",
     "checkin_check_number": "Please check the number",
     "checkin_bgl_empty": "Please enter your reading before you continue.",
-    "checkin_bgl_too_low": "Glucose meters show readings from 1.1 to 33.3 mmol/L. If your meter shows LO, please press My meter shows LO.",
-    "checkin_bgl_too_high": "Glucose meters show readings from 1.1 to 33.3 mmol/L. If your meter shows HI, please press My meter shows HI.",
+    "checkin_bgl_too_low": "Glucose meters show readings from 1.1 to 33.3 mmol/L. If your meter shows LO, please press LO on the keypad.",
+    "checkin_bgl_too_high": "Glucose meters show readings from 1.1 to 33.3 mmol/L. If your meter shows HI, please press HI on the keypad.",
     "checkin_meter_lo": "My meter shows LO",
     "checkin_meter_hi": "My meter shows HI",
     "checkin_reading_lo": "LO (below 1.1 mmol/L)",

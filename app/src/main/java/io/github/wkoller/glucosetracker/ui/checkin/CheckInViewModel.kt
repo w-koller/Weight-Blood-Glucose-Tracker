@@ -63,6 +63,8 @@ data class CheckInUi(
     val date: LocalDate = LocalDate.now(),
     val step: CheckInStep = CheckInStep.BGL,
     val bglText: String = "",
+    /** LO or HI when the meter shows a word instead of a number. Typing a digit clears it. */
+    val bglFlag: MeterFlag? = null,
     val bglError: NumberInput<Int>? = null,
     val reading: GlucoseReading? = null,
     val advice: DoseAdvice? = null,
@@ -153,19 +155,22 @@ class CheckInViewModel(private val container: AppContainer, private val handle: 
 
     fun setSlot(slot: Slot) = _ui.update { it.copy(slot = slot) }
 
-    fun setBglText(text: String) = _ui.update { it.copy(bglText = text, bglError = null) }
+    fun setBglText(text: String) = _ui.update { it.copy(bglText = text, bglFlag = null, bglError = null) }
+
+    /** The meter shows LO or HI. Like a typed number, it is saved only when the user presses Next, so a stray tap can be put right. */
+    fun meterShows(flag: MeterFlag) = _ui.update { it.copy(bglText = "", bglFlag = flag, bglError = null) }
 
     fun submitBgl() {
-        when (val input = InputValidator.bgl(_ui.value.bglText)) {
+        val state = _ui.value
+        if (state.bglFlag != null) {
+            saveReading(if (state.bglFlag == MeterFlag.LO) InputValidator.METER_MIN_TENTHS else InputValidator.METER_MAX_TENTHS, state.bglFlag)
+            return
+        }
+        when (val input = InputValidator.bgl(state.bglText)) {
             is NumberInput.Valid -> saveReading(input.value, null)
             else -> _ui.update { it.copy(bglError = input) }
         }
     }
-
-    fun meterShows(flag: MeterFlag) = saveReading(
-        if (flag == MeterFlag.LO) InputValidator.METER_MIN_TENTHS else InputValidator.METER_MAX_TENTHS,
-        flag,
-    )
 
     private fun saveReading(tenths: Int, flag: MeterFlag?) = work {
         val state = _ui.value
@@ -295,7 +300,7 @@ class CheckInViewModel(private val container: AppContainer, private val handle: 
     /** Records that no sliding-scale dose was given because of the low reading, then starts a new reading. */
     fun enterNewReading() = work {
         recordLowSkip()
-        _ui.update { it.copy(step = CheckInStep.BGL, bglText = "", bglError = null, reading = null, advice = null) }
+        _ui.update { it.copy(step = CheckInStep.BGL, bglText = "", bglFlag = null, bglError = null, reading = null, advice = null) }
     }
 
     fun continueAfterLow() = work {

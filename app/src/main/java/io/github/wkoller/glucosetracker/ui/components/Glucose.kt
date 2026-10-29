@@ -1,5 +1,6 @@
 package io.github.wkoller.glucosetracker.ui.components
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -32,18 +34,25 @@ import io.github.wkoller.glucosetracker.R
 import io.github.wkoller.glucosetracker.domain.dosing.GlucoseStatus
 import io.github.wkoller.glucosetracker.domain.dosing.SlidingScale
 import io.github.wkoller.glucosetracker.domain.format.Measures
+import io.github.wkoller.glucosetracker.domain.model.MeterFlag
 import io.github.wkoller.glucosetracker.ui.theme.LocalStatusColors
 
-/** The status of a reading as an icon and a word on a coloured background. */
+/** The background, text colour and icon for a reading's status, shared by the chip, the pill and the logbook chart. */
 @Composable
-fun StatusChip(status: GlucoseStatus, modifier: Modifier = Modifier) {
+fun statusStyle(status: GlucoseStatus): Triple<Color, Color, Int> {
     val colors = LocalStatusColors.current
-    val (background, content, icon) = when (status) {
+    return when (status) {
         GlucoseStatus.LOW -> Triple(colors.low, colors.onLow, R.drawable.ic_warning)
         GlucoseStatus.BELOW_TARGET -> Triple(colors.above, colors.onAbove, R.drawable.ic_arrow_downward)
         GlucoseStatus.IN_TARGET -> Triple(colors.inTarget, colors.onInTarget, R.drawable.ic_check_circle)
         GlucoseStatus.ABOVE_TARGET -> Triple(colors.above, colors.onAbove, R.drawable.ic_arrow_upward)
     }
+}
+
+/** The status of a reading as an icon and a word on a coloured background. */
+@Composable
+fun StatusChip(status: GlucoseStatus, modifier: Modifier = Modifier) {
+    val (background, content, icon) = statusStyle(status)
     Surface(color = background, contentColor = content, shape = RoundedCornerShape(50), modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
             Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(24.dp))
@@ -126,5 +135,72 @@ fun BglValue(tenths: Int, modifier: Modifier = Modifier) {
     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Start, modifier = modifier) {
         Text(Measures.formatTenths(tenths), style = MaterialTheme.typography.displayMedium)
         Text(" " + stringResource(R.string.unit_mmol), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 8.dp))
+    }
+}
+
+/**
+ * HI and LO keys for the keypad, for when the meter shows a word instead of a number. HI sits above LO,
+ * as high sits above low. A key only fills in the reading, like a digit, so the user still presses Next.
+ */
+@Composable
+fun meterKeys(selected: MeterFlag?, onPress: (MeterFlag) -> Unit): List<WordKey> = listOf(MeterFlag.HI, MeterFlag.LO).map { flag ->
+    WordKey(
+        label = stringResource(flag.wordRes()),
+        description = stringResource(flag.meterShowsRes()),
+        selected = selected == flag,
+        tag = "key_${flag.name.lowercase()}",
+        onPress = { onPress(flag) },
+    )
+}
+
+/** "LO" or "HI", the word the meter shows. */
+@StringRes
+fun MeterFlag.wordRes(): Int = when (this) {
+    MeterFlag.LO -> R.string.meter_lo
+    MeterFlag.HI -> R.string.meter_hi
+}
+
+/** "My meter shows LO", read by TalkBack for the key and for the reading once it is entered. */
+@StringRes
+fun MeterFlag.meterShowsRes(): Int = when (this) {
+    MeterFlag.LO -> R.string.checkin_meter_lo
+    MeterFlag.HI -> R.string.checkin_meter_hi
+}
+
+/**
+ * A reading as a coloured pill: the status icon, then the number and its unit, or LO or HI when the meter
+ * could not measure the level. The icon carries the status as well as the colour does.
+ */
+@Composable
+fun ReadingPill(tenths: Int, meterFlag: MeterFlag?, status: GlucoseStatus, modifier: Modifier = Modifier) {
+    val (background, content, icon) = statusStyle(status)
+    Surface(color = background, contentColor = content, shape = RoundedCornerShape(50), modifier = modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 12.dp, end = 16.dp, top = 6.dp, bottom = 6.dp)) {
+            Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(24.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(meterFlag?.let { stringResource(it.wordRes()) } ?: Measures.formatTenths(tenths), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            if (meterFlag == null) {
+                Spacer(Modifier.width(4.dp))
+                Text(stringResource(R.string.unit_mmol), style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+}
+
+/** A measured value, such as a weight, as a pill like [ReadingPill] but without a status. */
+@Composable
+fun MeasurePill(value: String, unit: String, modifier: Modifier = Modifier) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        shape = RoundedCornerShape(50),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        modifier = modifier,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(4.dp))
+            Text(unit, style = MaterialTheme.typography.labelSmall)
+        }
     }
 }

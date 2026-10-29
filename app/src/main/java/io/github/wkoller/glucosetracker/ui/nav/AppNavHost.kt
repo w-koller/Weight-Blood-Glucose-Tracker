@@ -8,6 +8,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -22,6 +24,7 @@ import io.github.wkoller.glucosetracker.ui.checkin.CheckInScreen
 import io.github.wkoller.glucosetracker.ui.export.ExportScreen
 import io.github.wkoller.glucosetracker.ui.home.HomeActions
 import io.github.wkoller.glucosetracker.ui.home.HomeScreen
+import io.github.wkoller.glucosetracker.ui.logbook.DayChartScreen
 import io.github.wkoller.glucosetracker.ui.logbook.DayScreen
 import io.github.wkoller.glucosetracker.ui.logbook.LogbookScreen
 import io.github.wkoller.glucosetracker.ui.logbook.RecordEditorScreen
@@ -44,6 +47,7 @@ import io.github.wkoller.glucosetracker.ui.settings.SettingsScreen
 import io.github.wkoller.glucosetracker.ui.settings.SupportPersonScreen
 import io.github.wkoller.glucosetracker.ui.settings.VoiceScreen
 import io.github.wkoller.glucosetracker.ui.theme.LocalUiPrefs
+import java.time.LocalDate
 
 private const val FADE_MS = 200
 
@@ -54,6 +58,7 @@ object Routes {
     const val MEASURE = "measure?what={what}"
     const val LOGBOOK = "logbook"
     const val DAY = "day/{date}"
+    const val LOGBOOK_CHART = "logbook/chart/{date}"
     const val PROGRESS = "progress"
     const val MEDICINES = "medicines"
     const val ASSISTANT = "assistant?days={days}"
@@ -78,6 +83,10 @@ object Routes {
     fun checkIn(slot: Slot?, medicinesOnly: Boolean = false) = "checkin?slot=${slot?.name ?: ""}&medsOnly=$medicinesOnly"
     fun measure(what: String) = "measure?what=$what"
     fun day(date: String) = "day/$date"
+    fun logbookChart(date: String) = "logbook/chart/$date"
+
+    /** The day the full-screen chart was showing when it closed, handed back to the logbook list. */
+    const val CHART_DAY_RESULT = "chartDay"
     fun editRecord(date: String, kind: String, id: Long) = "record?date=$date&kind=$kind&id=$id"
     fun addRecord(date: String) = "record?date=$date&kind=&id=0"
     fun unlock(next: SetupMode) = "unlock?next=${next.name}"
@@ -174,7 +183,27 @@ fun AppNavHost(
                 onCheckIn = { navController.navigate(Routes.checkIn(it)) { popUpTo(Routes.HOME) } },
             )
         }
-        composable(Routes.LOGBOOK) { LogbookScreen(onBack = back, onDay = { navController.navigate(Routes.day(it.toString())) }) }
+        composable(Routes.LOGBOOK) { entry ->
+            val returned by entry.savedStateHandle.getStateFlow<String?>(Routes.CHART_DAY_RESULT, null).collectAsStateWithLifecycle()
+            LogbookScreen(
+                onBack = back,
+                onDay = { navController.navigate(Routes.day(it.toString())) },
+                onChart = { navController.navigate(Routes.logbookChart(it.toString())) },
+                returnDate = returned?.let(LocalDate::parse),
+                onReturnHandled = { entry.savedStateHandle[Routes.CHART_DAY_RESULT] = null },
+            )
+        }
+        composable(Routes.LOGBOOK_CHART, arguments = listOf(navArgument("date") { type = NavType.StringType })) { entry ->
+            DayChartScreen(
+                onClose = { date ->
+                    // Back and the Back button can both arrive, so only the chart's own entry closes it.
+                    if (navController.currentBackStackEntry?.id == entry.id) {
+                        navController.previousBackStackEntry?.savedStateHandle?.set(Routes.CHART_DAY_RESULT, date.toString())
+                        navController.popBackStack()
+                    }
+                },
+            )
+        }
         composable(Routes.DAY, arguments = listOf(navArgument("date") { type = NavType.StringType })) { entry ->
             val date = entry.arguments?.getString("date").orEmpty()
             DayScreen(

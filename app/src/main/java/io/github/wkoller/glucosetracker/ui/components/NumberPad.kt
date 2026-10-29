@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -27,6 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
@@ -42,11 +44,12 @@ import io.github.wkoller.glucosetracker.ui.theme.LocalUiPrefs
 
 /**
  * The number being typed, shown very large with its unit. It stays on one line: the text shrinks to
- * fit rather than wrapping, because it is already larger than the largest text size.
+ * fit rather than wrapping, because it is already larger than the largest text size. TalkBack reads
+ * [description] when there is one, such as "My meter shows LO" for a word from a [WordKey].
  */
 @Composable
-fun ValueDisplay(value: String, unit: String, modifier: Modifier = Modifier) {
-    val spoken = if (value.isEmpty()) stringResource(R.string.number_empty) else "$value $unit"
+fun ValueDisplay(value: String, unit: String, modifier: Modifier = Modifier, description: String? = null) {
+    val spoken = description ?: if (value.isEmpty()) stringResource(R.string.number_empty) else "$value $unit"
     val density = LocalDensity.current
     // Sizes are fixed in dp, so the text-size setting does not push the number past the edges.
     val largest = with(density) { 52.dp.toSp() }
@@ -102,8 +105,15 @@ internal object NumberPadInput {
 }
 
 /**
+ * A key beside the digits that enters a word instead of a number, such as LO or HI from a glucose
+ * meter. [description] is what TalkBack reads, and [selected] marks the word that is entered now.
+ */
+data class WordKey(val label: String, val description: String, val selected: Boolean, val tag: String, val onPress: () -> Unit)
+
+/**
  * A large on-screen keypad. It avoids the phone keyboard, whose keys are small and whose layout
- * changes between phones.
+ * changes between phones. [wordKeys] stand in a column on the right, each as tall as the rows allow,
+ * so they are always in view next to the digits.
  */
 @Composable
 fun NumberPad(
@@ -114,11 +124,15 @@ fun NumberPad(
     maxIntegerDigits: Int = 3,
     keepLeadingZeros: Boolean = false,
     keyHeight: Dp = 68.dp,
+    wordKeys: List<WordKey> = emptyList(),
 ) {
     val haptics = LocalHapticFeedback.current
     val prefs = LocalUiPrefs.current
-    fun press(key: String) {
+    fun tap() {
         if (prefs.haptics) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+    }
+    fun press(key: String) {
+        tap()
         onValueChange(NumberPadInput.next(value, key, maxDecimals, maxIntegerDigits, keepLeadingZeros))
     }
     val pointLabel = stringResource(R.string.number_point)
@@ -128,36 +142,74 @@ fun NumberPad(
         lineHeight = 1.1.em,
     )
     val rows = listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf(".", "0", "back"))
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        rows.forEach { row ->
-            // A row is given less than a full key only when the space above it is needed, for example for an error.
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.weight(1f, fill = false)) {
-                row.forEach { key ->
-                    val enabled = !(key == "." && maxDecimals == 0)
-                    OutlinedButton(
-                        onClick = { press(key) },
-                        enabled = enabled,
-                        shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
-                        contentPadding = PaddingValues(0.dp),
-                        modifier = Modifier.weight(1f).height(keyHeight).testTag("key_$key"),
-                    ) {
-                        when (key) {
-                            "back" -> Icon(
-                                painterResource(R.drawable.ic_backspace),
-                                contentDescription = stringResource(R.string.number_delete),
-                                modifier = Modifier.size(keyHeight * 0.45f),
-                            )
-                            "." -> Text(
-                                ".",
-                                style = labelStyle,
-                                modifier = Modifier.semantics { contentDescription = pointLabel },
-                            )
-                            else -> Text(key, style = labelStyle)
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(KEY_SPACING)) {
+        Column(Modifier.weight(rows[0].size.toFloat()), verticalArrangement = Arrangement.spacedBy(KEY_SPACING)) {
+            rows.forEach { row ->
+                // A row is given less than a full key only when the space above it is needed, for example for an error.
+                Row(horizontalArrangement = Arrangement.spacedBy(KEY_SPACING), modifier = Modifier.weight(1f, fill = false)) {
+                    row.forEach { key ->
+                        val enabled = !(key == "." && maxDecimals == 0)
+                        OutlinedButton(
+                            onClick = { press(key) },
+                            enabled = enabled,
+                            shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
+                            contentPadding = PaddingValues(0.dp),
+                            modifier = Modifier.weight(1f).height(keyHeight).testTag("key_$key"),
+                        ) {
+                            when (key) {
+                                "back" -> Icon(
+                                    painterResource(R.drawable.ic_backspace),
+                                    contentDescription = stringResource(R.string.number_delete),
+                                    modifier = Modifier.size(keyHeight * 0.45f),
+                                )
+                                "." -> Text(
+                                    ".",
+                                    style = labelStyle,
+                                    modifier = Modifier.semantics { contentDescription = pointLabel },
+                                )
+                                else -> Text(key, style = labelStyle)
+                            }
                         }
+                    }
+                }
+            }
+        }
+        if (wordKeys.isNotEmpty()) {
+            // Each word key spans an equal share of the digit rows, so the two columns end level.
+            val span = rows.size / wordKeys.size.toFloat()
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(KEY_SPACING)) {
+                wordKeys.forEach { key ->
+                    val colors = MaterialTheme.colorScheme
+                    OutlinedButton(
+                        onClick = {
+                            tap()
+                            key.onPress()
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(if (key.selected) 4.dp else 2.dp, if (key.selected) colors.primary else colors.outline),
+                        colors = if (key.selected) {
+                            ButtonDefaults.outlinedButtonColors(containerColor = colors.primaryContainer, contentColor = colors.onPrimaryContainer)
+                        } else {
+                            ButtonDefaults.outlinedButtonColors()
+                        },
+                        contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .fillMaxWidth()
+                            .height(keyHeight * span + KEY_SPACING * (span - 1))
+                            .testTag(key.tag)
+                            .semantics {
+                                contentDescription = key.description
+                                selected = key.selected
+                            },
+                    ) {
+                        Text(key.label, style = labelStyle, maxLines = 1)
                     }
                 }
             }
         }
     }
 }
+
+private val KEY_SPACING = 10.dp
