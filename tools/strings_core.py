@@ -269,6 +269,11 @@ STRINGS = {
     "about_version_title": "Version",
     "about_version": "Version %1$s",
     "about_licence": "This app is free software under the GNU General Public License, version 3. The icons are Material Symbols from Google, used under the Apache License 2.0. The optional natural voices use Kokoro-82M and sherpa-onnx, both under the Apache License 2.0, and eSpeak NG data under the GNU General Public License, version 3.",
+    "about_github_title": "The app on GitHub",
+    "about_github_body": "The app is free. Its code, its releases and the changes in each version are published on GitHub, at the address below. You can share the app with family or friends who would like to use it.",
+    "about_github_open": "Open the GitHub page",
+    "about_share": "Share the app",
+    "about_share_text": "Weight & Glucose Tracker is a free app for recording your weight, waist and blood glucose level. You can download it from GitHub at %1$s.",
 
     # Plan
     "plan_change": "Change my plan",

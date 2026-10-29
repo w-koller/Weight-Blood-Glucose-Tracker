@@ -5,16 +5,20 @@ import android.content.Intent
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,12 +66,64 @@ import java.util.Locale
 fun AssistantScreen(onBack: () -> Unit, onSetUp: () -> Unit, onCheckIn: () -> Unit, progressDays: Int? = null) {
     val vm = appViewModel { container, _ -> AssistantViewModel(container, progressDays) }
     val ui by vm.ui.collectAsStateWithLifecycle()
-    val context = LocalContext.current
+    AssistantContent(
+        ui,
+        AssistantActions(
+            back = onBack,
+            setUp = onSetUp,
+            checkIn = onCheckIn,
+            turnOn = vm::turnOn,
+            choosePeriod = vm::setPeriod,
+            summarise = vm::summarise,
+            editQuestion = vm::setQuestion,
+            ask = vm::ask,
+            stop = vm::stop,
+        ),
+    )
+}
 
-    ScreenScaffold(title = stringResource(R.string.assistant_title), onBack = onBack) {
+/** What the assistant's page can do. It is kept apart from the page, so tests can show the page in any state. */
+class AssistantActions(
+    val back: () -> Unit,
+    val setUp: () -> Unit,
+    val checkIn: () -> Unit,
+    val turnOn: () -> Unit = {},
+    val choosePeriod: (ReadoutPeriod) -> Unit = {},
+    val summarise: () -> Unit = {},
+    val editQuestion: (String) -> Unit = {},
+    val ask: (String) -> Unit = {},
+    val stop: () -> Unit = {},
+)
+
+/**
+ * The assistant's page. When the assistant is ready, the question box comes first, so it is in view as soon as
+ * the page opens, with the answers under it, then the suggested questions and the summary. Until then, the page
+ * starts with what the assistant is waiting for, such as its download or being turned on, and a button for it.
+ */
+@Composable
+fun AssistantContent(ui: AssistantUi, actions: AssistantActions) {
+    val context = LocalContext.current
+    ScreenScaffold(title = stringResource(R.string.assistant_title), onBack = actions.back) {
+        val days = ui.progressDays
+        if (ui.modelReady) {
+            SectionCard(stringResource(R.string.assistant_ask_title), icon = R.drawable.ic_forum) {
+                QuestionBox(ui.question, actions.editQuestion, onAsk = { actions.ask(ui.question) }, busy = ui.busy)
+            }
+            ui.exchanges.forEachIndexed { index, exchange ->
+                ExchangeCard(exchange, newest = index == ui.exchanges.lastIndex, count = ui.exchanges.size, actions = actions)
+            }
+            SectionCard(stringResource(R.string.assistant_questions_title)) {
+                (if (days != null) PERIOD_SUGGESTIONS else SUGGESTIONS)
+                    .forEach { res ->
+                        val text = stringResource(res)
+                        BigButton(text, onClick = { actions.ask(text) }, style = ButtonStyle.SECONDARY, enabled = !ui.busy)
+                    }
+            }
+        } else {
+            AssistantStatus(ui.modelState, actions)
+        }
 
         val facts = ui.context?.facts(ui.period)
-        val days = ui.progressDays
         if (days != null) {
             SectionCard(stringResource(R.string.assistant_period_title, days)) {
                 val progress = ui.context?.progress
@@ -78,14 +134,14 @@ fun AssistantScreen(onBack: () -> Unit, onSetUp: () -> Unit, onCheckIn: () -> Un
                         stringResource(R.string.assistant_period_body, UiFormat.dayLong(progress.from), UiFormat.dayLong(progress.to)),
                         style = MaterialTheme.typography.bodyLarge,
                     )
-                    if (ui.modelReady) SummaryAnswer(ui.summary, onSummarise = vm::summarise, onCheckIn = onCheckIn, onStop = vm::stop)
+                    if (ui.modelReady) SummaryAnswer(ui.summary, onSummarise = actions.summarise, onCheckIn = actions.checkIn, onStop = actions.stop)
                 }
             }
         } else {
             SectionCard(stringResource(R.string.assistant_readout_title)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    OptionRow(stringResource(R.string.assistant_today), null, ui.period == ReadoutPeriod.TODAY, { vm.setPeriod(ReadoutPeriod.TODAY) }, modifier = Modifier.weight(1f))
-                    OptionRow(stringResource(R.string.assistant_week), null, ui.period == ReadoutPeriod.WEEK, { vm.setPeriod(ReadoutPeriod.WEEK) }, modifier = Modifier.weight(1f))
+                    OptionRow(stringResource(R.string.assistant_today), null, ui.period == ReadoutPeriod.TODAY, { actions.choosePeriod(ReadoutPeriod.TODAY) }, modifier = Modifier.weight(1f))
+                    OptionRow(stringResource(R.string.assistant_week), null, ui.period == ReadoutPeriod.WEEK, { actions.choosePeriod(ReadoutPeriod.WEEK) }, modifier = Modifier.weight(1f))
                 }
                 if (facts == null) {
                     Text(stringResource(R.string.assistant_no_plan), style = MaterialTheme.typography.bodyLarge)
@@ -93,33 +149,52 @@ fun AssistantScreen(onBack: () -> Unit, onSetUp: () -> Unit, onCheckIn: () -> Un
                     val sentences = ReadoutText.sentences(context, facts)
                     sentences.forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
                     SpeakButton(sentences.joinToString(" "))
-                    if (ui.modelReady) SummaryAnswer(ui.summary, onSummarise = vm::summarise, onCheckIn = onCheckIn, onStop = vm::stop)
+                    if (ui.modelReady) SummaryAnswer(ui.summary, onSummarise = actions.summarise, onCheckIn = actions.checkIn, onStop = actions.stop)
                 }
             }
         }
+    }
+}
 
-        if (!ui.modelReady) {
-            NoticeCard(NoticeKind.INFO, stringResource(R.string.assistant_not_set_up_title), stringResource(R.string.assistant_not_set_up)) {
-                BigButton(stringResource(R.string.assistant_set_up), onClick = onSetUp, icon = R.drawable.ic_download)
-            }
-            return@ScreenScaffold
+/**
+ * Why questions cannot be asked yet, with a button for what to do: set up the assistant, follow its download, or
+ * turn it on when its model is downloaded but it is turned off.
+ */
+@Composable
+private fun AssistantStatus(state: ModelState, actions: AssistantActions) {
+    when (state) {
+        ModelState.Ready -> NoticeCard(NoticeKind.INFO, stringResource(R.string.assistant_off_title), stringResource(R.string.assistant_off, ModelManager.MODEL_NAME)) {
+            BigButton(stringResource(R.string.assistant_turn_on), onClick = actions.turnOn, icon = R.drawable.ic_check)
         }
+        ModelState.NotDownloaded -> NoticeCard(NoticeKind.INFO, stringResource(R.string.assistant_not_set_up_title), stringResource(R.string.assistant_not_set_up)) {
+            BigButton(stringResource(R.string.assistant_set_up), onClick = actions.setUp, icon = R.drawable.ic_download)
+        }
+        is ModelState.Downloading -> {
+            val percent = if (state.totalBytes > 0) (state.downloadedBytes * 100 / state.totalBytes).toInt() else 0
+            NoticeCard(NoticeKind.INFO, stringResource(R.string.assistant_status_downloading_title), stringResource(R.string.assistant_status_downloading, percent)) {
+                BigButton(stringResource(R.string.assistant_see_download), onClick = actions.setUp, icon = R.drawable.ic_download, style = ButtonStyle.SECONDARY)
+            }
+        }
+        ModelState.WaitingForWifi -> NoticeCard(NoticeKind.INFO, stringResource(R.string.assistant_waiting_wifi_title), stringResource(R.string.assistant_status_waiting)) {
+            BigButton(stringResource(R.string.assistant_see_download), onClick = actions.setUp, icon = R.drawable.ic_download, style = ButtonStyle.SECONDARY)
+        }
+        ModelState.Verifying -> NoticeCard(NoticeKind.INFO, stringResource(R.string.assistant_status_checking_title), stringResource(R.string.assistant_verifying))
+        is ModelState.Failed -> NoticeCard(NoticeKind.WARNING, stringResource(R.string.assistant_failed_setup_title), stringResource(R.string.assistant_status_failed)) {
+            BigButton(stringResource(R.string.assistant_see_download), onClick = actions.setUp, icon = R.drawable.ic_download)
+        }
+    }
+}
 
-        SectionCard(stringResource(R.string.assistant_questions_title)) {
-            (if (days != null) PERIOD_SUGGESTIONS else SUGGESTIONS)
-                .forEach { res ->
-                    val text = stringResource(res)
-                    BigButton(text, onClick = { vm.ask(text) }, style = ButtonStyle.SECONDARY, enabled = !ui.busy)
-                }
-        }
-        ui.exchanges.forEach { exchange ->
-            SectionCard(title = null) {
-                Text(stringResource(R.string.assistant_you_asked), style = MaterialTheme.typography.titleSmall)
-                Text(exchange.question, style = MaterialTheme.typography.titleMedium)
-                AnswerCard(exchange, onCheckIn, onStop = vm::stop)
-            }
-        }
-        QuestionBox(ui.question, vm::setQuestion, onAsk = { vm.ask() }, busy = ui.busy)
+/** A question and its answer. The newest is scrolled into view when it is added, in case the page is longer than the screen. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ExchangeCard(exchange: Exchange, newest: Boolean, count: Int, actions: AssistantActions) {
+    val requester = remember { BringIntoViewRequester() }
+    LaunchedEffect(count) { if (newest) requester.bringIntoView() }
+    SectionCard(title = null, modifier = Modifier.bringIntoViewRequester(requester)) {
+        Text(stringResource(R.string.assistant_you_asked), style = MaterialTheme.typography.titleSmall)
+        Text(exchange.question, style = MaterialTheme.typography.titleMedium)
+        AnswerCard(exchange, actions.checkIn, onStop = actions.stop)
     }
 }
 
@@ -225,7 +300,11 @@ fun AssistantSettingsScreen(onBack: () -> Unit) {
         models.watchDownload()
         onDispose { }
     }
-    val startDownload = rememberDownloadStarter(ModelManager.SIZE_TEXT) { models.startDownload(it) }
+    // Downloading the model is choosing to use the assistant, so it is turned on as well. Use the assistant can turn it off.
+    val startDownload = rememberDownloadStarter(ModelManager.SIZE_TEXT) { overMobile ->
+        models.startDownload(overMobile)
+        scope.launch { container.settingsStore.update { it.copy(assistantEnabled = true) } }
+    }
     val useMobileData = rememberMobileDataSwitch(ModelManager.SIZE_TEXT) { models.downloadWithMobileData() }
 
     ScreenScaffold(title = stringResource(R.string.settings_assistant), onBack = onBack) {

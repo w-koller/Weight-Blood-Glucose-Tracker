@@ -11,6 +11,16 @@
     <string name="assistant_not_set_up_title">The assistant is not set up</string>
     <string name="assistant_not_set_up">The assistant can answer questions about your records. Would you like to set it up now?</string>
     <string name="assistant_set_up">Set up the assistant</string>
+    <string name="assistant_ask_title">Ask a question</string>
+    <string name="assistant_off_title">The assistant is turned off</string>
+    <string name="assistant_off">%1$s is downloaded on this phone, but the assistant is turned off. Please turn it on to ask questions about your records.</string>
+    <string name="assistant_turn_on">Turn on the assistant</string>
+    <string name="assistant_status_downloading_title">The assistant is downloading</string>
+    <string name="assistant_status_downloading">%1$d%% of the model has downloaded. You can ask questions about your records when the download has finished.</string>
+    <string name="assistant_status_waiting">The model will download when your phone connects to Wi-Fi. You can ask questions about your records when the download has finished.</string>
+    <string name="assistant_status_checking_title">The assistant is almost ready</string>
+    <string name="assistant_status_failed">The model could not be downloaded. Please open the download to see why and try again.</string>
+    <string name="assistant_see_download">See the download</string>
     <string name="assistant_questions_title">Questions you can ask</string>
     <string name="assistant_suggest_week">How was my week?</string>
     <string name="assistant_suggest_highest">What was my highest reading this week?</string>
@@ -353,6 +363,11 @@
     <string name="about_version_title">Version</string>
     <string name="about_version">Version %1$s</string>
     <string name="about_licence">This app is free software under the GNU General Public License, version 3. The icons are Material Symbols from Google, used under the Apache License 2.0. The optional natural voices use Kokoro-82M and sherpa-onnx, both under the Apache License 2.0, and eSpeak NG data under the GNU General Public License, version 3.</string>
+    <string name="about_github_title">The app on GitHub</string>
+    <string name="about_github_body">The app is free. Its code, its releases and the changes in each version are published on GitHub, at the address below. You can share the app with family or friends who would like to use it.</string>
+    <string name="about_github_open">Open the GitHub page</string>
+    <string name="about_share">Share the app</string>
+    <string name="about_share_text">Weight &amp; Glucose Tracker is a free app for recording your weight, waist and blood glucose level. You can download it from GitHub at %1$s.</string>
     <string name="plan_change">Change my plan</string>
     <string name="plan_new">Start a new plan</string>
     <string name="plan_new_helper">Start a new cycle with new goals.</string>
@@ -529,6 +544,8 @@
     <string name="logbook_entry_reading">%1$s, %2$s. %3$s, %4$s.</string>
     <string name="logbook_entry_time">%1$s, %2$s.</string>
     <string name="logbook_chart_show_day">Show this day on a large chart</string>
+    <string name="logbook_chart_day_before">Show the day before</string>
+    <string name="logbook_chart_day_after">Show the day after</string>
     <string name="logbook_chart_day_none">%1$s. No readings.</string>
     <string name="logbook_chart_day_one">%1$s. One reading of %2$s.</string>
     <string name="logbook_chart_day_range">%1$s. %2$s, from %3$s to %4$s.</string>

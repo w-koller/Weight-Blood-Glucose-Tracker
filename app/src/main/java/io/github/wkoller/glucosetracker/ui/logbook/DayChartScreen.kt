@@ -6,6 +6,7 @@ import androidx.activity.compose.LocalActivity
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -40,6 +41,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -51,10 +53,12 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -151,7 +155,14 @@ fun DayChartScreen(onClose: (LocalDate) -> Unit) {
                     if (chart != null) {
                         val history = if (chart.others.isEmpty()) null else pluralStringResource(R.plurals.day_chart_history, chart.others.size, chart.others.size)
                         val summary = listOfNotNull(describeChartDay(context, chart.date, LogbookDay(chart.date, chart.entries)), history).joinToString(" ")
-                        DayChartPlot(chart, ui.targets, summary, onOpen = { openKey = it.key })
+                        DayChartPlot(
+                            chart,
+                            ui.targets,
+                            summary,
+                            onOpen = { openKey = it.key },
+                            onEarlier = { if (ui.canGoEarlier) vm.earlier() },
+                            onLater = { if (ui.canGoLater) vm.later() },
+                        )
                         if (chart.points.isEmpty()) {
                             Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(12.dp), modifier = Modifier.align(Alignment.Center)) {
                                 Text(stringResource(R.string.day_chart_none), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
@@ -220,9 +231,18 @@ private fun DayStepButton(text: String, @DrawableRes icon: Int, iconFirst: Boole
 /**
  * The plot: time of day along the bottom, from the start of the day, and the level up the side. The day's values
  * are placed over the drawing as buttons, so each can be pressed and TalkBack reads each one after [summary].
+ * Holding a finger on the chart and sliding it sideways moves through the days, a day for each fifth of the
+ * width: to the right for the days before, as on the list's chart, and to the left for the days after.
  */
 @Composable
-private fun DayChartPlot(chart: DayChart, targets: GlucoseTargets, summary: String, onOpen: (CheckEntry) -> Unit) {
+private fun DayChartPlot(
+    chart: DayChart,
+    targets: GlucoseTargets,
+    summary: String,
+    onOpen: (CheckEntry) -> Unit,
+    onEarlier: () -> Unit,
+    onLater: () -> Unit,
+) {
     val context = LocalContext.current
     val measurer = rememberTextMeasurer()
     val colors = MaterialTheme.colorScheme
@@ -230,7 +250,29 @@ private fun DayChartPlot(chart: DayChart, targets: GlucoseTargets, summary: Stri
     val labelStyle = MaterialTheme.typography.bodySmall.copy(color = colors.onSurfaceVariant)
     val density = LocalDensity.current
     val hourLabels = remember(chart.dayStartMinute) { hourTicks(chart.dayStartMinute) }.map { (minute, time) -> minute to UiFormat.hour(context, time) }
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val prefs = LocalUiPrefs.current
+    val haptics = LocalHapticFeedback.current
+    val earlier by rememberUpdatedState(onEarlier)
+    val later by rememberUpdatedState(onLater)
+    val drag = Modifier.pointerInput(Unit) {
+        var pulled = 0f
+        detectHorizontalDragGestures(onDragStart = { pulled = 0f }) { change, dragAmount ->
+            change.consume()
+            pulled += dragAmount
+            val step = size.width / DRAG_STEPS
+            while (pulled >= step || pulled <= -step) {
+                if (prefs.haptics) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                if (pulled > 0) {
+                    pulled -= step
+                    earlier()
+                } else {
+                    pulled += step
+                    later()
+                }
+            }
+        }
+    }
+    BoxWithConstraints(Modifier.fillMaxSize().then(drag).testTag("day_chart")) {
         val geometry = DayGeometry.of(chart, constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat(), measurer, labelStyle, density)
         Canvas(Modifier.matchParentSize().semantics { contentDescription = summary }) {
             val g = geometry
@@ -444,6 +486,8 @@ private val LOW_LIFT = 22.dp
 private const val SHORT_DATE_FONT_SCALE = 1.5f
 private const val VALUE_MAX_FONT_SCALE = 1.3f
 private const val KEY_MAX_FONT_SCALE = 1.5f
+/** Sliding a finger across this share of the chart's width moves it by one day. */
+private const val DRAG_STEPS = 5f
 private const val TICK_MINUTES = 180
 private const val LEVEL_STEP = 50
 private const val TOP_TENTHS = 200

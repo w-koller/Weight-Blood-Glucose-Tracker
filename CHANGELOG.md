@@ -1,5 +1,19 @@
 # Changes
 
+## 1.0.0-rc.2
+
+### In the app
+
+- The assistant now turns on when you download its model from Settings. The Assistant screen says what the assistant is waiting for, such as its download or being turned on, with a button for it. Once the assistant is ready, the question box is the first thing on the screen.
+- Holding a finger on the logbook chart and sliding it sideways moves through the days, and the list follows. Sliding sideways on the full-screen chart moves a day at a time.
+- Dragging up or down on the logbook's heading or chart scrolls the list, which helps with the phone turned sideways.
+- **Settings › About this app** now links to the app on GitHub, with a button to share the app.
+
+### For developers
+
+- Version 1.0.0-rc.2 (versionCode 6), published as a pre-release.
+- The assistant's page is `AssistantContent` with `AssistantActions`, so tests can show it in each state.
+
 ## 1.0.0-rc.1
 
 ### In the app

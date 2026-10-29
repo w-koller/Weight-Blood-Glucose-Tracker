@@ -286,6 +286,21 @@ class SmallScreenTest {
         shot("small_13_day_chart_largest")
     }
 
+    @Test
+    fun `the assistant's question box is in view when it opens at the largest text`() {
+        enlargePhoneFont()
+        val context = runBlocking { app.container.assistant.context() }!!
+        show(largest) {
+            io.github.wkoller.glucosetracker.ui.assistant.AssistantContent(
+                io.github.wkoller.glucosetracker.ui.assistant.AssistantUi(context = context, modelState = io.github.wkoller.glucosetracker.ai.ModelState.Ready, enabled = true),
+                io.github.wkoller.glucosetracker.ui.assistant.AssistantActions(back = {}, setUp = {}, checkIn = {}),
+            )
+        }
+        waitFor("Ask a question")
+        compose.onNode(hasSetTextAction()).assertIsDisplayed()
+        shot("small_14_assistant_largest")
+    }
+
     private companion object {
         /** Keys may shrink a little to make room for an error, but never below a comfortable touch target. */
         val MIN_KEY = 48.dp

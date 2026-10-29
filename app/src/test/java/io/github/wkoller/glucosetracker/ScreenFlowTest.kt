@@ -7,6 +7,9 @@ import androidx.activity.compose.LocalActivity
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -26,8 +29,13 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
+import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.swipeUp
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.github.wkoller.glucosetracker.ai.ModelState
 import io.github.wkoller.glucosetracker.data.db.toEntities
 import io.github.wkoller.glucosetracker.data.prefs.Settings
 import io.github.wkoller.glucosetracker.domain.assistant.AssistantGuard
@@ -43,6 +51,8 @@ import io.github.wkoller.glucosetracker.domain.progress.ProgressModelBuilder
 import io.github.wkoller.glucosetracker.tts.LocalSpeaker
 import io.github.wkoller.glucosetracker.tts.Speaker
 import io.github.wkoller.glucosetracker.ui.UiFormat
+import io.github.wkoller.glucosetracker.ui.assistant.AssistantActions
+import io.github.wkoller.glucosetracker.ui.assistant.AssistantContent
 import io.github.wkoller.glucosetracker.ui.assistant.AssistantScreen
 import io.github.wkoller.glucosetracker.ui.assistant.PERIOD_SUGGESTIONS
 import io.github.wkoller.glucosetracker.ui.checkin.CheckInScreen
@@ -54,6 +64,7 @@ import io.github.wkoller.glucosetracker.ui.progress.ProgressContent
 import io.github.wkoller.glucosetracker.ui.progress.ProgressScreen
 import io.github.wkoller.glucosetracker.ui.progress.ProgressUi
 import io.github.wkoller.glucosetracker.ui.theme.TrackerTheme
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -431,6 +442,52 @@ class ScreenFlowTest {
         assertEquals(twoDaysAgo, charted)
     }
 
+    /** Slides a finger along the list's chart from left to right, which shows earlier days. */
+    private fun slideChartRight(share: Float) = compose.onNodeWithTag("logbook_chart").performTouchInput {
+        swipe(start = androidx.compose.ui.geometry.Offset(width * 0.2f, centerY), end = androidx.compose.ui.geometry.Offset(width * (0.2f + share), centerY), durationMillis = 600)
+    }
+
+    @Test
+    @Config(qualifiers = "w411dp-h891dp-xhdpi")
+    fun `sliding a finger along the list's chart moves the list through the days`() {
+        seedPlan()
+        val today = runBlocking { repository.logicalToday(repository.currentPlan()) }
+        runBlocking { TestRecords.seedLogbook(repository, today) }
+        var charted: LocalDate? = null
+        show { io.github.wkoller.glucosetracker.ui.logbook.LogbookScreen(onBack = {}, onDay = {}, onChart = { charted = it }) }
+        click("List")
+        waitFor("Today, " + UiFormat.dayLong(today))
+
+        // A slide of about a day and a half to the right brings the day in the chart's middle, two days ago, to the top.
+        slideChartRight(0.45f)
+        compose.waitForIdle()
+        val twoDaysAgo = today.minusDays(2)
+        compose.onNodeWithText(UiFormat.dayLong(twoDaysAgo)).assertIsDisplayed()
+        assertTrue(compose.onAllNodesWithText("Today, " + UiFormat.dayLong(today)).fetchSemanticsNodes().isEmpty())
+        assertNull("A slide is not a press, so the full-screen chart stays closed", charted)
+        shot("logbook_08_chart_slid")
+    }
+
+    @Test
+    @Config(qualifiers = "w891dp-h411dp-land-xhdpi")
+    fun `the list's chart slides through the days with the phone turned sideways`() {
+        seedPlan()
+        val today = runBlocking { repository.logicalToday(repository.currentPlan()) }
+        runBlocking { TestRecords.seedLogbook(repository, today) }
+        show { io.github.wkoller.glucosetracker.ui.logbook.LogbookScreen(onBack = {}, onDay = {}) }
+        click("List")
+        waitFor("Today, " + UiFormat.dayLong(today))
+        slideChartRight(0.45f)
+        compose.waitForIdle()
+        compose.onNodeWithText(UiFormat.dayLong(today.minusDays(2))).assertIsDisplayed()
+
+        // Dragging up on the chart slides the heading away, so the list has the room under the chart.
+        compose.onNodeWithTag("logbook_chart").performTouchInput { swipeUp(startY = bottom * 0.9f, endY = top, durationMillis = 400) }
+        compose.waitForIdle()
+        compose.onNodeWithText("Back").assertIsNotDisplayed()
+        shot("logbook_09_chart_slid_sideways")
+    }
+
     @Test
     @Config(qualifiers = "w411dp-h891dp-xhdpi")
     fun `a day pressed on the chart opens sideways on a full-screen chart, and Back returns to it in the list`() {
@@ -495,6 +552,16 @@ class ScreenFlowTest {
         click("Close")
         compose.waitForIdle()
         assertTrue(compose.onAllNodesWithText("NovoRapid, 6 units given").fetchSemanticsNodes().isEmpty())
+
+        // Sliding a finger sideways moves through the days: to the right for the day before, to the left for the day after.
+        fun slide(from: Float, to: Float) = compose.onNodeWithTag("day_chart").performTouchInput {
+            swipe(start = androidx.compose.ui.geometry.Offset(width * from, centerY), end = androidx.compose.ui.geometry.Offset(width * to, centerY), durationMillis = 500)
+        }
+        slide(0.3f, 0.6f)
+        waitFor(UiFormat.dayLong(today.minusDays(2)))
+        slide(0.6f, 0.3f)
+        waitFor(UiFormat.dayLong(yesterday))
+        assertTrue(compose.onAllNodesWithText("NovoRapid, 6 units given").fetchSemanticsNodes().isEmpty())
     }
 
     @Test
@@ -532,6 +599,102 @@ class ScreenFlowTest {
         show { io.github.wkoller.glucosetracker.ui.assistant.AssistantSettingsScreen(onBack = {}) }
         waitFor("Download the model")
         shot("assistant_02_settings")
+    }
+
+    @Test
+    fun `the assistant puts the question box first once it is ready`() {
+        seedPlan()
+        val context = runBlocking { app.container.assistant.context() }!!
+        var ui by mutableStateOf(io.github.wkoller.glucosetracker.ui.assistant.AssistantUi(context = context, modelState = ModelState.Ready, enabled = true))
+        var asked: String? = null
+        show {
+            AssistantContent(
+                ui,
+                AssistantActions(back = {}, setUp = {}, checkIn = {}, editQuestion = { ui = ui.copy(question = it) }, ask = { asked = it }),
+            )
+        }
+        waitFor("Ask a question")
+        compose.onNode(hasSetTextAction()).performTextInput("How were my readings before dinner?")
+        click("Ask")
+        assertEquals("How were my readings before dinner?", asked)
+        waitFor("Questions you can ask")
+        shot("assistant_04_ready")
+    }
+
+    @Test
+    fun `a downloaded assistant that is turned off offers to turn it on`() {
+        seedPlan()
+        val context = runBlocking { app.container.assistant.context() }!!
+        var turnedOn = false
+        show {
+            AssistantContent(
+                io.github.wkoller.glucosetracker.ui.assistant.AssistantUi(context = context, modelState = ModelState.Ready, enabled = false),
+                AssistantActions(back = {}, setUp = {}, checkIn = {}, turnOn = { turnedOn = true }),
+            )
+        }
+        waitFor("The assistant is turned off")
+        assertTrue(compose.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().isEmpty())
+        shot("assistant_05_turned_off")
+        click("Turn on the assistant")
+        assertTrue(turnedOn)
+
+        // The button turns the assistant on in Settings.
+        val vm = io.github.wkoller.glucosetracker.ui.assistant.AssistantViewModel(app.container)
+        vm.turnOn()
+        waitForBackgroundWork { runBlocking { app.container.settingsStore.settings.first() }.assistantEnabled }
+    }
+
+    @Test
+    fun `the assistant shows its download while the model downloads`() {
+        seedPlan()
+        val context = runBlocking { app.container.assistant.context() }!!
+        var opened = false
+        show {
+            AssistantContent(
+                io.github.wkoller.glucosetracker.ui.assistant.AssistantUi(context = context, modelState = ModelState.Downloading(650_000_000, 2_600_000_000), enabled = true),
+                AssistantActions(back = {}, setUp = { opened = true }, checkIn = {}),
+            )
+        }
+        waitFor("25% of the model has downloaded.")
+        shot("assistant_06_downloading")
+        click("See the download")
+        assertTrue(opened)
+    }
+
+    @Test
+    fun `downloading the model turns on the assistant`() {
+        seedPlan()
+        val directory = app.getExternalFilesDir(io.github.wkoller.glucosetracker.ai.ModelManager.MODEL_DIR)!!.apply { mkdirs() }
+        org.robolectric.shadows.ShadowStatFs.registerStats(directory, 2_000_000, 2_000_000, 2_000_000)
+        show { io.github.wkoller.glucosetracker.ui.assistant.AssistantSettingsScreen(onBack = {}) }
+        click("Download the model")
+        waitForBackgroundWork { runBlocking { app.container.settingsStore.settings.first() }.assistantEnabled }
+        app.container.models.cancelDownload()
+    }
+
+    @Test
+    fun `About links to the app on GitHub and shares it`() {
+        lateinit var activity: Activity
+        show {
+            activity = LocalActivity.current!!
+            io.github.wkoller.glucosetracker.ui.settings.AboutScreen(onBack = {})
+        }
+        waitFor("github.com/w-koller/Weight-Blood-Glucose-Tracker")
+        compose.onNodeWithText("Share the app").performScrollTo()
+        shot("about_03_github")
+
+        click("Open the GitHub page")
+        val opened = org.robolectric.Shadows.shadowOf(activity).nextStartedActivity
+        assertEquals(android.content.Intent.ACTION_VIEW, opened.action)
+        assertEquals(io.github.wkoller.glucosetracker.ui.settings.PROJECT_URL, opened.dataString)
+
+        click("Share the app")
+        val chooser = org.robolectric.Shadows.shadowOf(activity).nextStartedActivity
+        assertEquals(android.content.Intent.ACTION_CHOOSER, chooser.action)
+        @Suppress("DEPRECATION")
+        val send = chooser.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!
+        assertEquals(android.content.Intent.ACTION_SEND, send.action)
+        assertTrue(send.getStringExtra(android.content.Intent.EXTRA_TEXT)!!.contains(io.github.wkoller.glucosetracker.ui.settings.PROJECT_URL))
     }
 
     @Test

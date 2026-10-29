@@ -22,6 +22,8 @@ STRINGS = {
 
     # The chart above the list
     "logbook_chart_show_day": "Show this day on a large chart",
+    "logbook_chart_day_before": "Show the day before",
+    "logbook_chart_day_after": "Show the day after",
     "logbook_chart_day_none": "%1$s. No readings.",
     "logbook_chart_day_one": "%1$s. One reading of %2$s.",
     "logbook_chart_day_range": "%1$s. %2$s, from %3$s to %4$s.",
