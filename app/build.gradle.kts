@@ -92,8 +92,8 @@ android {
         applicationId = "io.github.wkoller.glucosetracker"
         minSdk = 31
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.0.0-rc.1"
+        versionCode = 6
+        versionName = "1.0.0-rc.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
