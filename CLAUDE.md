@@ -30,7 +30,8 @@ CI (`.github/workflows/android.yml`) runs the same tasks and uploads the debug A
 signed release APK when the `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and `KEY_PASSWORD`
 secrets are set. The release keystore lives at `~/.android-keys/` and must never be committed. A `v*` tag
 that matches `versionName` publishes the signed APK and its checksum as a GitHub Release, with the notes from
-that version's section of `CHANGELOG.md`. CI also fails when `strings.xml` does not match `tools/strings_*.py`.
+that version's section of `CHANGELOG.md`. A version with a suffix, such as `1.0.0-rc.1`, is published as a
+pre-release. CI also fails when `strings.xml` does not match `tools/strings_*.py`.
 
 About › Licences reads `assets/licences/`. The build copies the licence and notice files out of the LiteRT-LM
 and Commons Compress archives into it (`collect<Variant>Licences`), and `app/src/main/assets/licences/` holds

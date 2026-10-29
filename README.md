@@ -51,7 +51,7 @@ The app is written in Kotlin with Jetpack Compose. The dose and schedule rules l
 
 The release signing key is kept outside the repository. Please keep a backup of it, because without it a new version cannot be installed over the old one.
 
-To publish a release, set `versionCode` and `versionName` in `app/build.gradle.kts`, add a section for the version to `CHANGELOG.md`, and push a tag such as `v1.0.0`. CI builds the signed APK and creates the GitHub Release with the APK and its checksum. Each CI run also uploads a debug APK. It is a separate app, with its own records, so it is for testing only.
+To publish a release, set `versionCode` and `versionName` in `app/build.gradle.kts`, add a section for the version to `CHANGELOG.md`, and push a tag such as `v1.0.0`. CI builds the signed APK and creates the GitHub Release with the APK and its checksum. A version with a suffix, such as `1.0.0-rc.1` and the tag `v1.0.0-rc.1`, is published as a pre-release for testing, which does not become the latest release. Each CI run also uploads a debug APK. It is a separate app, with its own records, so it is for testing only.
 
 ## Licence
 
